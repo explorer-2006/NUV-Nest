@@ -165,7 +165,7 @@ def login():
 
 
 @app.route("/dashboard")
-@login_required
+@login_required                                         #protected page
 def dashboard():
     return render_template("dashboard.html", user=current_user)
 
