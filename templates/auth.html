@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NUV Nest — Authorization</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}"/>
+</head>
+<body data-form="{{ active_form }}">
+
+<div class="container" id="container">
+
+  <!-- ══ RED PANEL ══ -->
+  <div class="panel" id="panel">
+    <div class="panel-content" id="panelContent">
+      <h2 id="panelTitle">Hello,<br>Welcome!</h2>
+      <p id="panelSub">Don't have an account?</p>
+      <button class="panel-btn" id="panelToggle">Register</button>
+    </div>
+  </div>
+
+  <!-- ══ FORMS ══ -->
+  <div class="forms-area" id="formsArea">
+
+    <!-- ── LOGIN ── -->
+    <div class="form-card" id="login-card">
+      <h2>Login</h2>
+
+      {% with messages = get_flashed_messages() %}
+        {% if messages and active_form == 'login' %}
+          {% for msg in messages %}
+            <div class="flash-msg">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST" action="{{ url_for('login') }}">
+        {{ login_form.hidden_tag() }}
+
+        <div class="input-group">
+          {{ login_form.email(placeholder="Email", autocomplete="email") }}
+          <i class='bx bx-envelope'></i>
+          {% if login_form.email.errors %}
+            <div class="field-error">{{ login_form.email.errors[0] }}</div>
+          {% endif %}
+        </div>
+
+        <div class="input-group">
+          {{ login_form.password(placeholder="Password", autocomplete="current-password") }}
+          <i class='bx bx-lock-alt'></i>
+          {% if login_form.password.errors %}
+            <div class="field-error">{{ login_form.password.errors[0] }}</div>
+          {% endif %}
+        </div>
+
+        <a href="#" class="forgot">Forgot password?</a>
+        {{ login_form.submit(class="btn-submit", value="Login") }}
+      </form>
+    </div>
+
+    <!-- ── REGISTER ── -->
+    <div class="form-card" id="register-card">
+      <h2>Register</h2>
+
+      {% with messages = get_flashed_messages() %}
+        {% if messages and active_form == 'register' %}
+          {% for msg in messages %}
+            <div class="flash-msg">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST" action="{{ url_for('register') }}">
+        {{ register_form.hidden_tag() }}
+
+        <div class="input-grid">
+          <div class="input-group">
+            {{ register_form.username(placeholder="Username", autocomplete="username") }}
+            <i class='bx bx-user'></i>
+            {% if register_form.username.errors %}
+              <div class="field-error">{{ register_form.username.errors[0] }}</div>
+            {% endif %}
+          </div>
+
+          <div class="input-group">
+            {{ register_form.enrollno(placeholder="Enrollment No.") }}
+            <i class='bx bx-id-card'></i>
+            {% if register_form.enrollno.errors %}
+              <div class="field-error">{{ register_form.enrollno.errors[0] }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="input-group">
+          {{ register_form.email(placeholder="Email", autocomplete="email") }}
+          <i class='bx bx-envelope'></i>
+          {% if register_form.email.errors %}
+            <div class="field-error">{{ register_form.email.errors[0] }}</div>
+          {% endif %}
+        </div>
+
+        <div class="input-group">
+          {{ register_form.password(placeholder="Password", autocomplete="new-password") }}
+          <i class='bx bx-lock-alt'></i>
+          {% if register_form.password.errors %}
+            <div class="field-error">{{ register_form.password.errors[0] }}</div>
+          {% endif %}
+        </div>
+
+        <!-- School / Branch / Semester row -->
+        <div class="input-grid">
+          <div class="input-group">
+            <select name="school" id="school" required>
+              <option value="">-- School --</option>
+              <option value="SBL">SBL</option>
+              <option value="SET">SET</option>
+              <option value="SOS">SOS</option>
+              <option value="SEDA">SEDA</option>
+              <option value="SLSE">SLSE</option>
+            </select>
+            <i class='bx bx-buildings'></i>
+          </div>
+
+          <div class="input-group">
+            <select name="branch" id="branch" required disabled>
+              <option value="">-- Program --</option>
+            </select>
+            <i class='bx bx-book-alt'></i>
+          </div>
+        </div>
+
+        <!-- Semester (full width) -->
+        <div class="input-group">
+          {{ register_form.semester(class="sem-select") }}
+          <i class='bx bx-layer'></i>
+          {% if register_form.semester.errors %}
+            <div class="field-error">{{ register_form.semester.errors[0] }}</div>
+          {% endif %}
+        </div>
+
+        {{ register_form.submit(class="btn-submit", value="Register") }}
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+</body>
+</html>

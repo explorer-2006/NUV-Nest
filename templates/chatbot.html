@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NUV Nest — AI Chatbot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot.css') }}"/>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ══ LEFT SIDEBAR ══ -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 4C18 4 14 9 14 13C14 16.3 15.8 18.5 18 19C20.2 18.5 22 16.3 22 13C22 9 18 4 18 4Z" fill="white"/>
+          <path d="M10 12C10 12 7 16 8 19.5C8.8 22 11 23.2 13 22.5C14.5 21.2 14.8 18.5 13.5 15.5C12.5 13.5 10 12 10 12Z" fill="white"/>
+          <path d="M26 12C26 12 29 16 28 19.5C27.2 22 25 23.2 23 22.5C21.5 21.2 21.2 18.5 22.5 15.5C23.5 13.5 26 12 26 12Z" fill="white"/>
+          <rect x="17" y="19" width="2" height="8" fill="white" rx="1"/>
+          <rect x="8" y="28" width="20" height="2" fill="white" rx="1"/>
+        </svg>
+      </div>
+      <span class="logo-text">NUV Nest</span>
+    </div>
+
+    <!-- New Chat Button -->
+    <button class="new-chat-btn" id="newChatBtn">
+      <i class='bx bx-plus'></i>
+      <span>New Chat</span>
+    </button>
+
+    <!-- Conversation History -->
+    <div class="history-label">Recent Chats</div>
+    <div class="conv-list" id="convList">
+      <!-- Conversations loaded by JS -->
+    </div>
+
+    <!-- User info at bottom -->
+    <div class="sidebar-footer">
+      <a href="{{ url_for('dashboard') }}" class="footer-item">
+        <i class='bx bxs-dashboard'></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="{{ url_for('logout') }}" class="footer-item">
+        <i class='bx bx-log-out'></i>
+        <span>Logout</span>
+      </a>
+      <div class="user-pill">
+        <div class="user-avatar">{{ user.username[:2] | upper }}</div>
+        <div class="user-details">
+          <div class="user-name">{{ user.username }}</div>
+          <div class="user-meta">{{ user.school }} · Sem {{ user.semester }}</div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ══ MAIN CHAT AREA ══ -->
+  <main class="chat-main" id="chatMain">
+
+    <!-- Topbar -->
+    <div class="chat-topbar">
+      <button class="mob-menu-btn" id="mobMenuBtn">
+        <i class='bx bx-menu'></i>
+      </button>
+      <div class="topbar-title" id="topbarTitle">Elective Advisor</div>
+      <div class="topbar-right">
+        <div class="model-badge">gpt-4o-mini</div>
+      </div>
+    </div>
+
+    <!-- Chat Window -->
+    <div class="chat-window" id="chatWindow">
+
+      <!-- Empty state shown when no conversation is active -->
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon"><i class='bx bx-bot'></i></div>
+        <h2>NUV Elective Advisor</h2>
+        <p>Hi {{ user.username }}! I'll help you pick the right electives for your {{ user.branch }} program.</p>
+        <div class="suggestion-chips">
+          <button class="chip" onclick="sendChip(this)">What electives suit me?</button>
+          <button class="chip" onclick="sendChip(this)">Which elective helps in placements?</button>
+          <button class="chip" onclick="sendChip(this)">I'm interested in AI, what should I pick?</button>
+        </div>
+      </div>
+
+      <!-- Messages render here -->
+      <div class="messages" id="messages"></div>
+
+    </div>
+
+    <!-- Input Area -->
+    <div class="input-area">
+      <div class="input-box">
+        <textarea
+          id="userInput"
+          placeholder="Ask about electives..."
+          rows="1"
+          onkeydown="handleKey(event)"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+          <i class='bx bx-send'></i>
+        </button>
+      </div>
+      <div class="input-hint">NUV Nest AI · Elective recommendations for Navrachana University</div>
+    </div>
+
+  </main>
+
+</div>
+
+<script>
+  // Pass Flask user data to JS
+  const CURRENT_USER = {
+    username: "{{ user.username }}",
+    school:   "{{ user.school }}",
+    branch:   "{{ user.branch }}",
+    semester: "{{ user.semester }}"
+  };
+</script>
+<script src="{{ url_for('static', filename='js/chatbot.js') }}"></script>
+</body>
+</html>

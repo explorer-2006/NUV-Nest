@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NUV Nest — Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}"/>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar" id="sidebar">
+
+  <div class="toggle-btn" id="toggleBtn" title="Toggle sidebar">
+    <i class='bx bx-chevron-left'></i>
+  </div>
+
+  <div class="sidebar-inner">
+    <div class="logo-area">
+      <div class="college-logo">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 4C18 4 14 9 14 13C14 16.3 15.8 18.5 18 19C20.2 18.5 22 16.3 22 13C22 9 18 4 18 4Z" fill="white"/>
+          <path d="M10 12C10 12 7 16 8 19.5C8.8 22 11 23.2 13 22.5C14.5 21.2 14.8 18.5 13.5 15.5C12.5 13.5 10 12 10 12Z" fill="white"/>
+          <path d="M26 12C26 12 29 16 28 19.5C27.2 22 25 23.2 23 22.5C21.5 21.2 21.2 18.5 22.5 15.5C23.5 13.5 26 12 26 12Z" fill="white"/>
+          <rect x="17" y="19" width="2" height="8" fill="white" rx="1"/>
+          <rect x="8" y="28" width="20" height="2" fill="white" rx="1"/>
+          <rect x="11" y="31" width="5" height="1.5" fill="white" rx="0.5"/>
+          <rect x="20" y="31" width="5" height="1.5" fill="white" rx="0.5"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <span class="brand">NUV Nest</span>
+        <span class="sub">Navrachana University</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Main</div>
+      <a class="nav-item active" href="{{ url_for('dashboard') }}" data-tip="Dashboard">
+        <i class='bx bxs-dashboard'></i><span>Dashboard</span>
+      </a>
+      <a class="nav-item" href="{{ url_for('chatbot') }}" data-tip="Chatbot">
+        <i class='bx bx-bot'></i><span>AI Chatbot</span><span class="nav-badge">New</span>
+      </a>
+      <a class="nav-item" href="#" data-tip="Canteen">
+        <i class='bx bx-dish'></i><span>Canteen Booking</span>
+      </a>
+      <a class="nav-item" href="#" data-tip="Campus Map">
+        <i class='bx bx-map-alt'></i><span>Campus Map</span>
+      </a>
+      <a class="nav-item" href="#" data-tip="Attendance">
+        <i class='bx bx-calendar-check'></i><span>Attendance</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Account</div>
+      <a class="nav-item" href="#" data-tip="Profile">
+        <i class='bx bx-user-circle'></i><span>Profile</span>
+      </a>
+      <a class="nav-item" href="#" data-tip="Settings">
+        <i class='bx bx-cog'></i><span>Settings</span>
+      </a>
+      <a class="nav-item" href="{{ url_for('logout') }}" data-tip="Logout">
+        <i class='bx bx-log-out'></i><span>Logout</span>
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <!-- Avatar: first 2 letters of username, uppercased -->
+        <div class="avatar">{{ user.username[:2] | upper }}</div>
+        <div class="user-info">
+          <div class="uname">{{ user.username }}</div>
+          <div class="urole">{{ user.branch[:20] }} — Sem {{ user.semester }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<main class="main" id="main">
+
+  <div class="topbar">
+    <div>
+      <h1 id="greeting">Good morning, {{ user.username }} 👋</h1>
+      <p id="dateInfo">· Semester {{ user.semester }} ongoing</p>
+    </div>
+    <div class="topbar-right">
+      <div class="icon-btn"><i class='bx bx-search'></i></div>
+      <div class="icon-btn"><i class='bx bx-bell'></i><span class="notif-dot"></span></div>
+      <div class="icon-btn"><i class='bx bx-user-circle'></i></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon"><i class='bx bx-calendar-check'></i></div>
+      <div class="stat-value">3/5</div>
+      <div class="stat-label">Subjects above 80%</div>
+      <div class="stat-tag warn">2 subjects need attention</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class='bx bx-food-menu'></i></div>
+      <div class="stat-value">2</div>
+      <div class="stat-label">Meals pre-booked today</div>
+      <div class="stat-tag ok">Lunch &amp; Snacks ready</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class='bx bx-bot'></i></div>
+      <div class="stat-value">12</div>
+      <div class="stat-label">Chatbot queries</div>
+      <div class="stat-tag ok">+3 from yesterday</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class='bx bx-map-pin'></i></div>
+      <div class="stat-value">B-204</div>
+      <div class="stat-label">Next class location</div>
+      <div class="stat-tag warn">In 25 minutes</div>
+    </div>
+  </div>
+
+  <!-- Modules -->
+  <div class="section-title">Quick Access <span class="hint">— all 4 modules</span></div>
+  <div class="modules-grid">
+
+    <div class="module-card">
+      <div class="mod-head">
+        <div class="mod-icon"><i class='bx bx-bot'></i></div>
+        <div class="mod-arrow"><i class='bx bx-right-arrow-alt'></i></div>
+      </div>
+      <div>
+        <div class="mod-name">AI Chatbot</div>
+        <div class="mod-desc">Ask anything about timetables, exams, faculty, or campus resources instantly.</div>
+      </div>
+      <div class="mod-pills">
+        <span class="pill green">● Online</span>
+        <span class="pill">Powered by AI</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <div class="mod-head">
+        <div class="mod-icon"><i class='bx bx-dish'></i></div>
+        <div class="mod-arrow"><i class='bx bx-right-arrow-alt'></i></div>
+      </div>
+      <div>
+        <div class="mod-name">Canteen Pre-booking</div>
+        <div class="mod-desc">Skip the queue — pre-order your meals and collect at your slot time.</div>
+      </div>
+      <div class="mod-pills">
+        <span class="pill green">● Accepting orders</span>
+        <span class="pill amber">Closes 11:00 AM</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <div class="mod-head">
+        <div class="mod-icon"><i class='bx bx-map-alt'></i></div>
+        <div class="mod-arrow"><i class='bx bx-right-arrow-alt'></i></div>
+      </div>
+      <div>
+        <div class="mod-name">Campus Map</div>
+        <div class="mod-desc">Navigate buildings, labs, canteen, and facilities across NUV campus.</div>
+      </div>
+      <div class="mod-pills">
+        <span class="pill">Interactive</span>
+        <span class="pill">12 Buildings</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <div class="mod-head">
+        <div class="mod-icon"><i class='bx bx-calendar-check'></i></div>
+        <div class="mod-arrow"><i class='bx bx-right-arrow-alt'></i></div>
+      </div>
+      <div>
+        <div class="mod-name">Attendance Tracker</div>
+        <div class="mod-desc">Monitor per-subject attendance against the 80% requirement with alerts.</div>
+      </div>
+      <div class="mod-pills">
+        <span class="pill red">2 subjects below 80%</span>
+        <span class="pill">Sem {{ user.semester }}</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom row -->
+  <div class="bottom-row">
+
+    <!-- Attendance breakdown -->
+    <div class="info-card">
+      <div class="section-title">
+        Attendance — Per Subject
+        <span class="hint">80% required per subject</span>
+      </div>
+
+      <div class="subject-list">
+
+        <div class="subject-row">
+          <span class="subj-name">Maths</span>
+          <div class="bar-wrap">
+            <div class="bar-fill good" style="width:88%"></div>
+            <div class="bar-marker"></div>
+          </div>
+          <span class="subj-pct">88%</span>
+          <div class="subj-status ok"><i class='bx bx-check'></i></div>
+        </div>
+
+        <div class="subject-row">
+          <span class="subj-name">OS</span>
+          <div class="bar-wrap">
+            <div class="bar-fill bad" style="width:72%"></div>
+            <div class="bar-marker"></div>
+          </div>
+          <span class="subj-pct">72%</span>
+          <div class="subj-status bad"><i class='bx bx-x'></i></div>
+        </div>
+
+        <div class="subject-row">
+          <span class="subj-name">DBMS</span>
+          <div class="bar-wrap">
+            <div class="bar-fill good" style="width:91%"></div>
+            <div class="bar-marker"></div>
+          </div>
+          <span class="subj-pct">91%</span>
+          <div class="subj-status ok"><i class='bx bx-check'></i></div>
+        </div>
+
+        <div class="subject-row">
+          <span class="subj-name">CN</span>
+          <div class="bar-wrap">
+            <div class="bar-fill bad" style="width:65%"></div>
+            <div class="bar-marker"></div>
+          </div>
+          <span class="subj-pct">65%</span>
+          <div class="subj-status bad"><i class='bx bx-x'></i></div>
+        </div>
+
+        <div class="subject-row">
+          <span class="subj-name">DSA</span>
+          <div class="bar-wrap">
+            <div class="bar-fill warn" style="width:82%"></div>
+            <div class="bar-marker"></div>
+          </div>
+          <span class="subj-pct">82%</span>
+          <div class="subj-status ok"><i class='bx bx-check'></i></div>
+        </div>
+
+      </div>
+
+      <div class="attend-summary">
+        <div class="sum-pill ok"><span class="num">3</span>Above 80%</div>
+        <div class="sum-pill bad"><span class="num">2</span>Below 80%</div>
+        <div class="sum-pill warn"><span class="num">78%</span>Overall avg</div>
+      </div>
+    </div>
+
+    <!-- Canteen today -->
+    <div class="info-card">
+      <div class="section-title">Today's Canteen Menu</div>
+      <div class="menu-list">
+        <div class="menu-item">
+          <div class="menu-left">
+            <div class="food-icon">🍱</div>
+            <div>
+              <div class="food-name">Veg Thali</div>
+              <div class="food-time">Lunch · 12:30 – 2:00 PM</div>
+            </div>
+          </div>
+          <div class="food-right">
+            <span class="food-price">₹60</span>
+            <button class="book-btn">Book</button>
+          </div>
+        </div>
+        <div class="menu-item">
+          <div class="menu-left">
+            <div class="food-icon">🥪</div>
+            <div>
+              <div class="food-name">Sandwich + Juice</div>
+              <div class="food-time">Snack · 4:00 – 5:00 PM</div>
+            </div>
+          </div>
+          <div class="food-right">
+            <span class="food-price">₹35</span>
+            <button class="book-btn">Book</button>
+          </div>
+        </div>
+        <div class="menu-item">
+          <div class="menu-left">
+            <div class="food-icon">☕</div>
+            <div>
+              <div class="food-name">Tea / Coffee</div>
+              <div class="food-time">All day · 8:00 AM onwards</div>
+            </div>
+          </div>
+          <div class="food-right">
+            <span class="food-price">₹15</span>
+            <button class="book-btn">Book</button>
+          </div>
+        </div>
+        <div class="menu-item">
+          <div class="menu-left">
+            <div class="food-icon">🍛</div>
+            <div>
+              <div class="food-name">Khichdi Bowl</div>
+              <div class="food-time">Dinner · 7:00 – 8:30 PM</div>
+            </div>
+          </div>
+          <div class="food-right">
+            <span class="food-price">₹45</span>
+            <button class="book-btn">Book</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
