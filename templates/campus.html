@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Campus Map{% endblock %}
+{% block page_title %}Campus Map{% endblock %}
+
+{% block extra_css %}
+<style>
+  .map-container {
+    display: grid; grid-template-columns: 300px 1fr; gap: 20px;
+    height: calc(100vh - 160px);
+  }
+  .map-sidebar {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 20px; padding: 24px; overflow-y: auto;
+  }
+  .search-box { position: relative; margin-bottom: 20px; }
+  .search-box input {
+    width: 100%; padding: 12px 16px 12px 44px; border: 1px solid var(--border);
+    border-radius: 12px; font-family: 'Poppins', sans-serif; font-size: 0.9rem;
+    background: var(--surface);
+  }
+  .search-box i {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-size: 1.1rem;
+  }
+  .building-category { margin-bottom: 20px; }
+  .category-title {
+    font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+    color: var(--muted); letter-spacing: 0.05em; margin-bottom: 12px;
+  }
+  .building-item {
+    display: flex; align-items: center; gap: 12px; padding: 12px;
+    border-radius: 12px; cursor: pointer; transition: all 0.2s; margin-bottom: 4px;
+  }
+  .building-item:hover { background: var(--surface); }
+  .building-item.active { background: rgba(188,23,29,0.08); }
+  .building-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--surface); display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+  }
+  .building-item.active .building-icon { background: var(--red); color: white; }
+  .building-info { flex: 1; }
+  .building-name { font-weight: 600; font-size: 0.9rem; }
+  .building-code { font-size: 0.75rem; color: var(--muted); }
+  .map-area {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 20px; position: relative; overflow: hidden;
+  }
+  .map-placeholder {
+    width: 100%; height: 100%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: var(--muted);
+  }
+  .map-placeholder i { font-size: 4rem; margin-bottom: 20px; color: var(--border); }
+  .map-controls {
+    position: absolute; bottom: 24px; right: 24px; display: flex; gap: 8px;
+  }
+  .map-btn {
+    width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--white); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.2s;
+  }
+  .map-btn:hover { background: var(--red); color: white; border-color: var(--red); }
+  .location-card {
+    position: absolute; top: 24px; left: 24px; background: var(--white);
+    padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    max-width: 280px; display: none;
+  }
+  .location-card.show { display: block; animation: fadeUp 0.3s ease; }
+  .location-card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+  .location-card p { font-size: 0.85rem; color: var(--muted); margin-bottom: 12px; }
+  .directions-btn {
+    width: 100%; padding: 10px; border: none; border-radius: 10px;
+    background: var(--red); color: white; font-family: 'Poppins', sans-serif;
+    font-weight: 600; cursor: pointer;
+  }
+  .map-container { animation: fadeUp 0.4s var(--ease) 0.10s both; }
+  @media (max-width: 900px) {
+    .map-container { grid-template-columns: 1fr; }
+    .map-sidebar { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<p style="font-size:0.8rem;color:var(--muted);margin-top:-20px;margin-bottom:24px;">
+  Navigate buildings, labs, canteen, and facilities across NUV campus
+</p>
+
+<div class="map-container">
+  <div class="map-sidebar">
+    <div class="search-box">
+      <i class='bx bx-search'></i>
+      <input type="text" placeholder="Search buildings, rooms…" />
+    </div>
+
+    <div class="building-category">
+      <div class="category-title">Academic Buildings</div>
+      <div class="building-item active" onclick="showLocation(this,'A-Block','Main academic block with classrooms and labs')">
+        <div class="building-icon">🏢</div>
+        <div class="building-info">
+          <div class="building-name">A-Block</div>
+          <div class="building-code">Classrooms &amp; Labs</div>
+        </div>
+      </div>
+      <div class="building-item" onclick="showLocation(this,'B-Block','Engineering and CSE department')">
+        <div class="building-icon">💻</div>
+        <div class="building-info">
+          <div class="building-name">B-Block</div>
+          <div class="building-code">CSE &amp; Engineering</div>
+        </div>
+      </div>
+      <div class="building-item" onclick="showLocation(this,'Library','Central library with digital resources')">
+        <div class="building-icon">📚</div>
+        <div class="building-info">
+          <div class="building-name">Library</div>
+          <div class="building-code">Study &amp; Resources</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="building-category">
+      <div class="category-title">Facilities</div>
+      <div class="building-item" onclick="showLocation(this,'Canteen','Main food court and cafeteria')">
+        <div class="building-icon">🍽️</div>
+        <div class="building-info">
+          <div class="building-name">Canteen</div>
+          <div class="building-code">Food Court</div>
+        </div>
+      </div>
+      <div class="building-item" onclick="showLocation(this,'Sports Complex','Indoor and outdoor sports facilities')">
+        <div class="building-icon">⚽</div>
+        <div class="building-info">
+          <div class="building-name">Sports Complex</div>
+          <div class="building-code">Gym &amp; Grounds</div>
+        </div>
+      </div>
+      <div class="building-item" onclick="showLocation(this,'Hostel','Student accommodation blocks')">
+        <div class="building-icon">🏠</div>
+        <div class="building-info">
+          <div class="building-name">Hostel</div>
+          <div class="building-code">Accommodation</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="map-area">
+    <div class="map-placeholder">
+      <i class='bx bx-map-alt'></i>
+      <h3>Interactive Campus Map</h3>
+      <p>Select a building from the sidebar to view details</p>
+    </div>
+
+    <div class="location-card" id="locationCard">
+      <h3 id="locName">Building Name</h3>
+      <p id="locDesc">Building description goes here…</p>
+      <button class="directions-btn" onclick="getDirections()">Get Directions</button>
+    </div>
+
+    <div class="map-controls">
+      <button class="map-btn" onclick="zoomIn()"><i class='bx bx-plus'></i></button>
+      <button class="map-btn" onclick="zoomOut()"><i class='bx bx-minus'></i></button>
+      <button class="map-btn" onclick="locateMe()"><i class='bx bx-current-location'></i></button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function showLocation(el, name, desc) {
+    document.querySelectorAll('.building-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('locName').textContent = name;
+    document.getElementById('locDesc').textContent = desc;
+    document.getElementById('locationCard').classList.add('show');
+  }
+  function getDirections() { alert('Directions feature coming soon! This would integrate with Google Maps.'); }
+  function zoomIn()  { console.log('Zoom in'); }
+  function zoomOut() { console.log('Zoom out'); }
+  function locateMe() { alert('Locating you… You are currently near B-Block'); }
+</script>
+{% endblock %}

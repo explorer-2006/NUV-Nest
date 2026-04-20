@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Tracker{% endblock %}
+{% block page_title %}Attendance Tracker 📋{% endblock %}
+
+{% block extra_css %}
+<style>
+  .summary-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+  .filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .chip { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--white); color: var(--muted); font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+  .chip:hover { border-color: var(--red); color: var(--red); }
+  .chip.active { background: var(--red); border-color: var(--red); color: white; }
+  .subjects-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 18px; margin-bottom: 24px; }
+  .subject-card { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 22px 24px; transition: transform 0.25s var(--ease), box-shadow 0.25s, border-color 0.25s; position: relative; overflow: hidden; }
+  .subject-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.08); border-color: rgba(188,23,29,0.25); }
+  .subject-card::after { content: ''; position: absolute; top: 0; right: 0; width: 90px; height: 90px; background: radial-gradient(circle at top right, rgba(188,23,29,0.06) 0%, transparent 70%); border-radius: 0 20px 0 0; }
+  .subject-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .subject-info { flex: 1; }
+  .subject-code { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .subject-name { font-size: 1rem; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; flex-shrink: 0; margin-left: 10px; margin-top: 2px; }
+  .status-badge.safe   { background: rgba(22,163,74,0.1);   color: #16a34a;  border: 1px solid rgba(22,163,74,0.25); }
+  .status-badge.warn   { background: rgba(202,138,4,0.1);  color: #ca8a04;  border: 1px solid rgba(202,138,4,0.25); }
+  .status-badge.danger { background: rgba(188,23,29,0.1);  color: var(--red); border: 1px solid rgba(188,23,29,0.25); }
+  .progress-area { margin-bottom: 14px; }
+  .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .progress-pct { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  .progress-pct.safe   { color: #16a34a; }
+  .progress-pct.warn   { color: #ca8a04; }
+  .progress-pct.danger { color: var(--red); }
+  .progress-detail { font-size: 0.72rem; color: var(--muted); text-align: right; }
+  .progress-track { height: 8px; border-radius: 100px; background: var(--input-bg); overflow: hidden; position: relative; }
+  .progress-fill { height: 100%; border-radius: 100px; transition: width 1s cubic-bezier(0.65,0,0.35,1); }
+  .progress-fill::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%); background-size: 200% 100%; animation: shimmer 2s infinite; }
+  @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+  .progress-fill.safe   { background: linear-gradient(90deg, #16a34a, #22c55e); }
+  .progress-fill.warn   { background: linear-gradient(90deg, #ca8a04, #eab308); }
+  .progress-fill.danger { background: linear-gradient(90deg, var(--red), #e84c52); }
+  .progress-track .threshold-line { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(0,0,0,0.2); left: 80%; z-index: 1; }
+  .progress-track .threshold-line::after { content: '80%'; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 0.55rem; color: var(--muted); white-space: nowrap; font-weight: 600; }
+  .subject-footer { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--border); }
+  .alert-banner { background: rgba(188,23,29,0.07); border: 1px solid rgba(188,23,29,0.2); border-radius: 16px; padding: 16px 20px; display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+  .alert-banner.safe { background: rgba(22,163,74,0.07); border-color: rgba(22,163,74,0.2); }
+  .alert-banner.warn { background: rgba(202,138,4,0.07); border-color: rgba(202,138,4,0.2); }
+  .alert-banner i { color: var(--red); font-size: 1.4rem; flex-shrink: 0; }
+  .alert-banner.safe i { color: #16a34a; }
+  .alert-banner.warn i { color: #ca8a04; }
+  .alert-text .alert-title { font-size: 0.88rem; font-weight: 700; color: var(--red); }
+  .alert-banner.safe .alert-title { color: #16a34a; }
+  .alert-banner.warn .alert-title { color: #ca8a04; }
+  .alert-text .alert-sub   { font-size: 0.75rem; color: #555; margin-top: 2px; }
+  
+  /* Calculation Box */
+  .calc-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-top: 12px;
+  }
+  .calc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+  }
+  .calc-row:last-child { margin-bottom: 0; }
+  .calc-label { color: var(--muted); }
+  .calc-value { font-weight: 700; }
+  .calc-value.can-miss { color: #16a34a; }
+  .calc-value.must-attend { color: var(--red); }
+  .calc-value.safe { color: #16a34a; }
+  
+  /* Add Data Button */
+  .add-data-section {
+    text-align: center;
+    padding: 60px 20px;
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    margin-bottom: 24px;
+  }
+  .add-data-section i {
+    font-size: 4rem;
+    color: var(--muted);
+    margin-bottom: 20px;
+    display: block;
+    opacity: 0.5;
+  }
+  .add-data-section h3 {
+    font-size: 1.3rem;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+  .add-data-section p {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 24px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .btn-add-data {
+    background: var(--red);
+    color: white;
+    border: none;
+    padding: 14px 32px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-add-data:hover { opacity: 0.9; transform: translateY(-1px); }
+  
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+  .modal-box {
+    background: var(--white);
+    border-radius: 24px;
+    padding: 36px 32px;
+    width: min(600px, 95vw);
+    max-height: 88vh;
+    overflow-y: auto;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.22);
+    transform: translateY(20px) scale(0.97);
+    transition: transform 0.3s var(--ease);
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .modal-overlay.open .modal-box {
+    transform: translateY(0) scale(1);
+  }
+
+  .modal-close {
+    position: absolute; top: 18px; right: 20px;
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  .modal-close:hover { background: var(--red); border-color: var(--red); }
+  .modal-close:hover i { color: white; }
+  .modal-close i { color: var(--muted); font-size: 1rem; }
+
+  .modal-title {
+    font-size: 1.3rem; font-weight: 800;
+    color: var(--text); letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .modal-sub {
+    font-size: 0.82rem; color: var(--muted); margin-bottom: 28px;
+  }
+  
+  .att-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .att-row-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+  .att-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .att-input-group label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .att-input-group input {
+    width: 100%;
+    padding: 10px 13px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    background: var(--white);
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  .att-input-group input:focus {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(188,23,29,0.1);
+    outline: none;
+  }
+  
+  .btn-save {
+    display: block; width: 100%;
+    padding: 14px;
+    background: var(--red);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem; font-weight: 700;
+    cursor: pointer;
+    margin-top: 24px;
+    letter-spacing: 0.01em;
+    transition: opacity 0.2s, transform 0.15s;
+  }
+  .btn-save:hover { opacity: 0.88; transform: translateY(-1px); }
+  
+  .alert-banner  { animation: fadeUp 0.4s var(--ease) 0.08s both; }
+  .summary-strip { animation: fadeUp 0.4s var(--ease) 0.10s both; }
+  .filter-row    { animation: fadeUp 0.4s var(--ease) 0.12s both; }
+  .subjects-grid { animation: fadeUp 0.4s var(--ease) 0.15s both; }
+  
+  @media (max-width: 900px) { .summary-strip { grid-template-columns: repeat(2,1fr); } .subjects-grid { grid-template-columns: 1fr; } .att-inputs { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<p style="font-size:0.8rem;color:var(--muted);margin-top:-20px;margin-bottom:24px;">
+  <span id="current-date">Friday, 4 April 2026</span> &nbsp;·&nbsp; Semester 4 &nbsp;·&nbsp; Week 10 of 18
+</p>
+
+<!-- Alert Banner -->
+<div class="alert-banner" id="alert-banner" style="display:none;">
+  <i class='bx bxs-error-circle' id="alert-icon"></i>
+  <div class="alert-text">
+    <div class="alert-title" id="alert-title">⚠ Some subjects need attention</div>
+    <div class="alert-sub" id="alert-sub">Check your attendance details below.</div>
+  </div>
+</div>
+
+<!-- Summary Strip -->
+<div class="summary-strip" id="summary-strip">
+  <div class="stat-card">
+    <div class="stat-icon"><i class='bx bx-book-open'></i></div>
+    <div class="stat-value" id="total-subjects">9</div>
+    <div class="stat-label">Total subjects</div>
+    <div class="stat-tag ok">Sem 4 — CSE</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon"><i class='bx bxs-check-circle'></i></div>
+    <div class="stat-value" id="safe-count">—</div>
+    <div class="stat-label">Above 80% threshold</div>
+    <div class="stat-tag ok">Safe to sit exams</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon"><i class='bx bxs-error-circle'></i></div>
+    <div class="stat-value" id="danger-count">—</div>
+    <div class="stat-label">Below 80% threshold</div>
+    <div class="stat-tag bad" id="danger-tag">Action required</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon"><i class='bx bx-trending-up'></i></div>
+    <div class="stat-value" id="overall-pct">—</div>
+    <div class="stat-label">Overall attendance</div>
+    <div class="stat-tag warn" id="overall-tag">Set up data</div>
+  </div>
+</div>
+
+<!-- Add Data Button (shown when no data) -->
+<div class="add-data-section" id="add-data-section">
+  <i class='bx bx-calculator'></i>
+  <h3>Track Your Attendance</h3>
+  <p>Enter your total classes and classes attended for each subject. We'll calculate your percentage and tell you how many classes you can miss or need to attend to maintain 80% attendance.</p>
+  <button class="btn-add-data" onclick="openEditModal()">
+    <i class='bx bx-plus'></i> Enter Attendance Data
+  </button>
+</div>
+
+<!-- Filter chips -->
+<div class="filter-row" id="filter-row" style="display:none;">
+  <span class="filter-label">Filter:</span>
+  <span class="chip active" onclick="filterCards('all',this)">All Subjects</span>
+  <span class="chip" onclick="filterCards('safe',this)">✓ Safe</span>
+  <span class="chip" onclick="filterCards('warn',this)">⚠ Warning</span>
+  <span class="chip" onclick="filterCards('danger',this)">✗ Critical</span>
+</div>
+
+<!-- Subjects Grid -->
+<div class="section-title" id="subjects-title" style="display:none;">Subject-wise Breakdown <span class="hint">— 9 subjects</span></div>
+<div class="subjects-grid" id="subjectsGrid">
+  <!-- Dynamically populated -->
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-modal" onclick="handleOverlayClick(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeEditModal()"><i class='bx bx-x'></i></button>
+    <div class="modal-title">Enter Attendance Data</div>
+    <div class="modal-sub">Enter total classes conducted and classes attended for each subject. We'll calculate everything for you!</div>
+    
+    <div id="edit-form-rows"></div>
+    
+    <button class="btn-save" onclick="saveAllAttendance()">
+      <i class='bx bx-save' style="vertical-align:-2px;margin-right:5px"></i> Save & Calculate
+    </button>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ─── Constants ────────────────────────────────────────────── */
+const STORAGE_KEY_ATTENDANCE = 'nuv_attendance_v2';
+
+// Original subject list as requested
+const SUBJECTS = [
+  'Problem Solving Using Python',
+  'Problem Solving Using Python Laboratory',
+  'Web Technology',
+  'Web Technology Laboratory',
+  'Probability and Statistics',
+  'Probability and Statistics Laboratory',
+  'Digital Logic Design',
+  'Digital Logic Design Laboratory',
+  'Engineering Graphics'
+];
+
+/* ─── State ─────────────────────────────────────────────────── */
+let attendanceData = {}; // { "Subject Name": {total: N, attended: M} }
+
+/* ─── Init ──────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  updateCurrentDate();
+  loadAttendanceData();
+  renderAttendance();
+  
+  // Listen for changes from other pages
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY_ATTENDANCE) {
+      loadAttendanceData();
+      renderAttendance();
+    }
+  });
+});
+
+function updateCurrentDate() {
+  const d = new Date();
+  const opts = {weekday:'long', day:'numeric', month:'long', year:'numeric'};
+  document.getElementById('current-date').textContent = d.toLocaleDateString('en-IN', opts);
+}
+
+/* ─── Load/Save Data ───────────────────────────────────────── */
+function loadAttendanceData() {
+  try {
+    const a = localStorage.getItem(STORAGE_KEY_ATTENDANCE);
+    if (a) {
+      attendanceData = JSON.parse(a);
+    } else {
+      attendanceData = {};
+    }
+  } catch(e) {
+    attendanceData = {};
+  }
+}
+
+function saveAttendanceData() {
+  localStorage.setItem(STORAGE_KEY_ATTENDANCE, JSON.stringify(attendanceData));
+  renderAttendance();
+}
+
+/* ─── Calculation Functions ─────────────────────────────────── */
+function calculateAttendance(total, attended) {
+  if (total === 0) return { pct: 0, status: 'none' };
+  const pct = (attended / total) * 100;
+  let status = 'safe';
+  if (pct < 80) status = 'warn';
+  if (pct < 70) status = 'danger';
+  return { pct: Math.round(pct * 10) / 10, status };
+}
+
+function calculateCanMiss(total, attended) {
+  // Formula: (attended + x) / (total + x) >= 0.8
+  // attended + x >= 0.8 * (total + x)
+  // attended + x >= 0.8*total + 0.8*x
+  // attended - 0.8*total >= 0.8*x - x
+  // attended - 0.8*total >= -0.2*x
+  // x >= (0.8*total - attended) / 0.2
+  // Wait, that's wrong. Let me recalculate:
+  // (attended) / (total + x) >= 0.8
+  // attended >= 0.8 * (total + x)
+  // attended >= 0.8*total + 0.8*x
+  // attended - 0.8*total >= 0.8*x
+  // x <= (attended - 0.8*total) / 0.8
+  if (attended < 0.8 * total) return 0;
+  return Math.floor((attended - 0.8 * total) / 0.8);
+}
+
+function calculateMustAttend(total, attended) {
+  // Need to find x such that (attended + x) / (total + x) >= 0.8
+  // attended + x >= 0.8*(total + x)
+  // attended + x >= 0.8*total + 0.8*x
+  // x - 0.8*x >= 0.8*total - attended
+  // 0.2*x >= 0.8*total - attended
+  // x >= (0.8*total - attended) / 0.2
+  if (attended >= 0.8 * total) return 0;
+  return Math.ceil((0.8 * total - attended) / 0.2);
+}
+
+/* ─── Render Attendance ─────────────────────────────────────── */
+function renderAttendance() {
+  const hasData = SUBJECTS.some(s => {
+    const d = attendanceData[s];
+    return d && d.total > 0;
+  });
+  
+  if (!hasData) {
+    document.getElementById('add-data-section').style.display = 'block';
+    document.getElementById('alert-banner').style.display = 'none';
+    document.getElementById('filter-row').style.display = 'none';
+    document.getElementById('subjects-title').style.display = 'none';
+    document.getElementById('subjectsGrid').innerHTML = '';
+    document.getElementById('safe-count').textContent = '—';
+    document.getElementById('danger-count').textContent = '—';
+    document.getElementById('overall-pct').textContent = '—';
+    document.getElementById('overall-tag').textContent = 'Set up data';
+    document.getElementById('overall-tag').className = 'stat-tag warn';
+    return;
+  }
+  
+  document.getElementById('add-data-section').style.display = 'none';
+  document.getElementById('alert-banner').style.display = 'flex';
+  document.getElementById('filter-row').style.display = 'flex';
+  document.getElementById('subjects-title').style.display = 'block';
+  
+  const grid = document.getElementById('subjectsGrid');
+  grid.innerHTML = '';
+  
+  let safeCount = 0, warnCount = 0, dangerCount = 0;
+  let totalAttended = 0, totalClasses = 0;
+  let dangerSubjects = [];
+  let warnSubjects = [];
+  
+  SUBJECTS.forEach((subj, idx) => {
+    const data = attendanceData[subj] || { total: 0, attended: 0 };
+    
+    if (data.total === 0) return;
+    
+    const { pct, status } = calculateAttendance(data.total, data.attended);
+    const absent = data.total - data.attended;
+    const canMiss = calculateCanMiss(data.total, data.attended);
+    const mustAttend = calculateMustAttend(data.total, data.attended);
+    
+    if (status === 'safe') safeCount++;
+    else if (status === 'warn') {
+      warnCount++;
+      warnSubjects.push(shortName(subj));
+    } else {
+      dangerCount++;
+      dangerSubjects.push(shortName(subj));
+    }
+    
+    totalAttended += data.attended;
+    totalClasses += data.total;
+    
+    // Build calculation display
+    let calcHtml = '';
+    if (status === 'safe') {
+      if (canMiss > 0) {
+        calcHtml = `
+          <div class="calc-box">
+            <div class="calc-row">
+              <span class="calc-label">✓ You can miss:</span>
+              <span class="calc-value can-miss">${canMiss} more class${canMiss > 1 ? 'es' : ''}</span>
+            </div>
+            <div class="calc-row">
+              <span class="calc-label">and still maintain:</span>
+              <span class="calc-value safe">≥80% attendance</span>
+            </div>
+          </div>`;
+      } else {
+        calcHtml = `
+          <div class="calc-box">
+            <div class="calc-row">
+              <span class="calc-label">⚠ At threshold:</span>
+              <span class="calc-value">Cannot miss any classes</span>
+            </div>
+          </div>`;
+      }
+    } else {
+      calcHtml = `
+        <div class="calc-box">
+          <div class="calc-row">
+            <span class="calc-label">⚠ You must attend:</span>
+            <span class="calc-value must-attend">${mustAttend} more class${mustAttend > 1 ? 'es' : ''}</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-label">to reach:</span>
+            <span class="calc-value safe">≥80% attendance</span>
+          </div>
+        </div>`;
+    }
+    
+    const card = document.createElement('div');
+    card.className = 'subject-card';
+    card.dataset.status = status;
+    card.innerHTML = `
+      <div class="subject-header">
+        <div class="subject-info">
+          <div class="subject-name">${subj}</div>
+        </div>
+        <span class="status-badge ${status}">${status === 'safe' ? 'Safe' : status === 'warn' ? 'Warning' : 'Critical'}</span>
+      </div>
+      <div class="progress-area">
+        <div class="progress-meta">
+          <div class="progress-pct ${status}">${pct}%</div>
+          <div class="progress-detail">${data.attended} / ${data.total} classes<br>${absent} absent</div>
+        </div>
+        <div class="progress-track">
+          <div class="threshold-line"></div>
+          <div class="progress-fill ${status}" style="width:${Math.min(pct, 100)}%"></div>
+        </div>
+      </div>
+      ${calcHtml}
+      <div class="subject-footer">
+        <span class="pill green">● ${data.attended} Present</span>
+        <span class="pill red">● ${absent} Absent</span>
+        <button class="pill" onclick="editSubject(${idx})" style="cursor:pointer;border:1px solid var(--border);background:var(--surface);">
+          <i class='bx bx-edit' style="font-size:0.7rem"></i> Edit
+        </button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+  
+  // Update summary stats
+  document.getElementById('safe-count').textContent = safeCount;
+  document.getElementById('danger-count').textContent = dangerCount + warnCount;
+  
+  const overallPct = totalClasses > 0 ? Math.round((totalAttended / totalClasses) * 100 * 10) / 10 : 0;
+  document.getElementById('overall-pct').textContent = overallPct + '%';
+  
+  // Update alert banner
+  const alertBanner = document.getElementById('alert-banner');
+  const alertIcon = document.getElementById('alert-icon');
+  const alertTitle = document.getElementById('alert-title');
+  const alertSub = document.getElementById('alert-sub');
+  
+  if (dangerCount > 0) {
+    alertBanner.className = 'alert-banner';
+    alertIcon.className = 'bx bxs-error-circle';
+    alertTitle.textContent = `⚠ ${dangerCount} subject${dangerCount > 1 ? 's are' : ' is'} below 70% (Critical)`;
+    alertSub.textContent = `${dangerSubjects.join(', ')} ${dangerCount > 1 ? 'need' : 'needs'} immediate attention. You risk being debarred from exams.`;
+    document.getElementById('overall-tag').textContent = 'Debarment risk!';
+    document.getElementById('overall-tag').className = 'stat-tag bad';
+    document.getElementById('danger-tag').textContent = `${dangerCount} critical`;
+    document.getElementById('danger-tag').className = 'stat-tag bad';
+  } else if (warnCount > 0) {
+    alertBanner.className = 'alert-banner warn';
+    alertIcon.className = 'bx bxs-error';
+    alertTitle.textContent = `⚠ ${warnCount} subject${warnCount > 1 ? 's are' : ' is'} below 80% (Warning)`;
+    alertSub.textContent = `${warnSubjects.join(', ')} ${warnCount > 1 ? 'need' : 'needs'} attention. Attend regularly to stay safe.`;
+    document.getElementById('overall-tag').textContent = 'Watch carefully';
+    document.getElementById('overall-tag').className = 'stat-tag warn';
+    document.getElementById('danger-tag').textContent = `${warnCount} warning`;
+    document.getElementById('danger-tag').className = 'stat-tag warn';
+  } else {
+    alertBanner.className = 'alert-banner safe';
+    alertIcon.className = 'bx bxs-check-circle';
+    alertTitle.textContent = '✓ All subjects are safe';
+    alertSub.textContent = 'Your attendance is above the 80% requirement for all subjects. Keep it up!';
+    document.getElementById('overall-tag').textContent = 'All on track';
+    document.getElementById('overall-tag').className = 'stat-tag ok';
+    document.getElementById('danger-tag').textContent = '0 critical';
+    document.getElementById('danger-tag').className = 'stat-tag ok';
+  }
+}
+
+function shortName(subj) {
+  const map = {
+    'Problem Solving Using Python': 'Python',
+    'Problem Solving Using Python Laboratory': 'Python Lab',
+    'Web Technology': 'Web Technology',
+    'Web Technology Laboratory': 'Web Tech Lab',
+    'Probability and Statistics': 'Prob & Stats',
+    'Probability and Statistics Laboratory': 'Prob & Stats Lab',
+    'Digital Logic Design': 'Digital Logic',
+    'Digital Logic Design Laboratory': 'Digital Logic Lab',
+    'Engineering Graphics': 'Eng. Graphics'
+  };
+  return map[subj] || subj;
+}
+
+/* ─── Filter Cards ─────────────────────────────────────────── */
+function filterCards(status, el) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.subject-card').forEach(card => {
+    card.style.display = (status === 'all' || card.dataset.status === status) ? '' : 'none';
+  });
+}
+
+/* ─── Edit Modal ────────────────────────────────────────────── */
+function openEditModal() {
+  const container = document.getElementById('edit-form-rows');
+  container.innerHTML = '';
+  
+  SUBJECTS.forEach((subj, idx) => {
+    const stored = attendanceData[subj] || {};
+    
+    const row = document.createElement('div');
+    row.className = 'att-row';
+    row.innerHTML = `
+      <div class="att-row-name">${subj}</div>
+      <div class="att-inputs">
+        <div class="att-input-group">
+          <label>Total Classes Conducted</label>
+          <input type="number" id="edit-total-${idx}" min="0" max="200" placeholder="e.g. 50" value="${stored.total || ''}">
+        </div>
+        <div class="att-input-group">
+          <label>Classes Attended</label>
+          <input type="number" id="edit-attended-${idx}" min="0" max="200" placeholder="e.g. 40" value="${stored.attended || ''}">
+        </div>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+  
+  document.getElementById('edit-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function editSubject(idx) {
+  openEditModal();
+  setTimeout(() => {
+    const input = document.getElementById(`edit-total-${idx}`);
+    if (input) {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus();
+    }
+  }, 100);
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('edit-modal')) closeEditModal();
+}
+
+function saveAllAttendance() {
+  SUBJECTS.forEach((subj, idx) => {
+    const total = parseInt(document.getElementById(`edit-total-${idx}`).value) || 0;
+    const attended = parseInt(document.getElementById(`edit-attended-${idx}`).value) || 0;
+    
+    attendanceData[subj] = {
+      total: total,
+      attended: Math.min(attended, total)
+    };
+  });
+  
+  saveAttendanceData();
+  closeEditModal();
+}
+</script>
+{% endblock %}

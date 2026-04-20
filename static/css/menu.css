@@ -1,0 +1,176 @@
+/* ══════════════════════════════════════════════
+   NUV Nest — Canteen Selection Page (menu.css)
+   ══════════════════════════════════════════════ */
+
+.page-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: -8px;
+  margin-bottom: 32px;
+}
+
+/* ── Selection Grid ────────────────────────────────────────── */
+.canteen-select-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  max-width: 1000px;
+  animation: fadeUp 0.4s var(--ease) 0.1s both;
+}
+
+/* ── Canteen Card ──────────────────────────────────────────── */
+.canteen-select-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px 28px;
+  cursor: pointer;
+  transition: transform 0.25s var(--ease), box-shadow 0.25s, border-color 0.25s;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Accent top bar — revealed on hover */
+.canteen-select-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--red);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s var(--ease);
+}
+
+/* Subtle corner radial glow */
+.canteen-select-card::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 110px; height: 110px;
+  background: radial-gradient(circle at top right, rgba(188,23,29,0.06) 0%, transparent 70%);
+  border-radius: 0 20px 0 0;
+  pointer-events: none;
+}
+
+.canteen-select-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(188,23,29,0.12);
+  border-color: rgba(188,23,29,0.3);
+}
+
+.canteen-select-card:hover::before {
+  transform: scaleX(1);
+}
+
+.canteen-select-card:active {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* ── Card Icon ─────────────────────────────────────────────── */
+.select-card-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: rgba(188,23,29,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.canteen-select-card:hover .select-card-icon {
+  background: var(--red);
+}
+
+/* ── Card Body ─────────────────────────────────────────────── */
+.select-card-body { flex: 1; }
+
+.select-card-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+}
+
+.select-card-desc {
+  font-size: 0.83rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ── Card Meta Tags ────────────────────────────────────────── */
+.select-card-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.meta-pill.open {
+  background: rgba(22,163,74,0.08);
+  color: #16a34a;
+  border-color: rgba(22,163,74,0.2);
+}
+
+.meta-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ── Arrow ─────────────────────────────────────────────────── */
+.select-card-arrow {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.canteen-select-card:hover .select-card-arrow {
+  background: var(--red);
+  border-color: var(--red);
+  color: white;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .canteen-select-grid {
+    grid-template-columns: 1fr;
+  }
+}

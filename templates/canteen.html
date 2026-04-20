@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Canteen Booking{% endblock %}
+{% block page_title %}Canteen Pre-booking{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/canteen.css') }}"/>
+{% endblock %}
+
+{% block content %}
+<p style="font-size:0.8rem;color:var(--muted);margin-top:-20px;margin-bottom:24px;">
+  Skip the queue — pre-order meals and collect at your slot time
+</p>
+
+<div class="canteen-grid">
+  <div class="menu-section">
+    <div class="section-header">
+      <!-- Back button + dynamic heading injected here by JS -->
+      <div class="section-header-left">
+        <a href="/menu" class="back-btn" id="back-btn">
+          <i class='bx bx-arrow-back'></i> All Canteens
+        </a>
+        <h2 id="canteen-heading">Today's Menu</h2>
+      </div>
+      <span style="color:var(--muted);font-size:0.85rem;" id="menu-date"></span>
+    </div>
+
+    <div class="meal-tabs" id="meal-tabs">
+      <!-- Tabs injected by canteen.js based on selected canteen -->
+    </div>
+
+    <!-- Dynamic tab content panels injected by canteen.js -->
+    <div id="tab-panels"></div>
+  </div>
+
+  <!-- ── CART — completely unchanged from original ── -->
+  <div class="cart-section">
+    <div class="cart-header">
+      <h3>Your Order</h3>
+      <span class="cart-count" id="cartCount">0</span>
+    </div>
+    <div class="cart-items" id="cartItems">
+      <p style="color:var(--muted);text-align:center;padding:40px 0;">Your cart is empty</p>
+    </div>
+    <div class="cart-total">
+      <span>Total</span>
+      <span id="cartTotal">₹0</span>
+    </div>
+    <div class="time-slot">
+      <h4>Pickup Time Slot</h4>
+      <div class="slot-options">
+        <div class="slot-option selected">12:00 PM</div>
+        <div class="slot-option">12:30 PM</div>
+        <div class="slot-option">1:00 PM</div>
+        <div class="slot-option">1:30 PM</div>
+        <div class="slot-option">2:00 PM</div>
+      </div>
+    </div>
+    <button class="checkout-btn" style="margin-top:16px;" onclick="checkout()">
+      Proceed to Checkout
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const STATIC_BASE = "{{ url_for('static', filename='') }}";
+</script>
+<script src="{{ url_for('static', filename='js/canteen.js') }}"></script>
+{% endblock %}

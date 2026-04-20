@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Choose Canteen{% endblock %}
+{% block page_title %}Canteen Pre-booking{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/menu.css') }}"/>
+{% endblock %}
+
+{% block content %}
+<p class="page-sub">Select a canteen to browse today's menu and pre-order your meal</p>
+
+<div class="canteen-select-grid" id="canteen-select-grid">
+  <!-- Cards injected by menu.js -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/menu.js') }}"></script>
+{% endblock %}
