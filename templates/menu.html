@@ -4,17 +4,236 @@
 {% block page_title %}Canteen Pre-booking{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/menu.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/canteen.css') }}"/>
+<style>
+  /* ── Canteen Sidebar Items ── */
+  .canteen-list {
+    padding: 8px 10px;
+  }
+  .canteen-sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .canteen-sidebar-item:hover {
+    background: #f5f5f8;
+    color: var(--text);
+  }
+  .canteen-sidebar-item.active {
+    background: rgba(188, 23, 29, 0.08);
+    border-color: rgba(188, 23, 29, 0.15);
+    color: var(--red);
+  }
+  .canteen-sidebar-item.active .sidebar-item-icon {
+    background: var(--red);
+    color: white;
+  }
+  .canteen-sidebar-item.active .sidebar-item-name {
+    color: var(--red);
+    font-weight: 600;
+  }
+  .sidebar-item-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .sidebar-item-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .sidebar-item-name {
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: inherit;
+    margin-bottom: 2px;
+  }
+  .sidebar-item-meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .meta-tag {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .meta-tag.open {
+    background: #dcfce7;
+    color: #166534;
+  }
+  .sidebar-item-arrow {
+    font-size: 1.1rem;
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .canteen-sidebar-item:hover .sidebar-item-arrow {
+    color: var(--red);
+    transform: translateX(3px);
+  }
+
+  /* ── Shared style: Past Orders + Back to Dashboard ── */
+  .sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    margin: 6px 10px 0;
+    border-radius: 12px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+    cursor: pointer;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .sidebar-link:hover {
+    background: #f5f5f8;
+    color: var(--text);
+  }
+  .sidebar-link i {
+    font-size: 1.15rem;
+    flex-shrink: 0;
+  }
+
+  /* ── Main Content ── */
+  .canteen-shell {
+    display: none;
+  }
+  .canteen-shell.active {
+    display: block;
+  }
+  .canteen-placeholder {
+    text-align: center;
+    color: var(--muted);
+    padding: 80px 20px;
+  }
+  .canteen-placeholder .icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+  }
+  .canteen-placeholder h2 {
+    color: var(--text);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+</style>
+{% endblock %}
+
+{% block sidebar_nav %}
+<div class="nav-section">
+  <div class="nav-label">Canteens</div>
+  <div class="canteen-list" id="canteen-list">
+    <!-- 3 canteens injected by menu.js -->
+  </div>
+  
+  <a class="sidebar-link" id="reorder-btn" href="{{ url_for('past_orders') }}">
+    <i class='bx bx-receipt'></i>
+    <span>View Past Orders</span>
+  </a>
+
+  <!-- Back to Dashboard -->
+  <a class="sidebar-link" href="{{ url_for('dashboard') }}">
+    <i class='bx bxs-dashboard'></i>
+    <span>Back to Dashboard</span>
+  </a>
+</div>
 {% endblock %}
 
 {% block content %}
-<p class="page-sub">Select a canteen to browse today's menu and pre-order your meal</p>
+<!-- Placeholder: shown when no canteen selected -->
+<div class="canteen-placeholder" id="canteen-placeholder">
+  <div class="icon">🍽️</div>
+  <h2>Select a Canteen</h2>
+  <p>Choose a canteen from the sidebar to browse today's menu and pre-order your meal.</p>
+</div>
 
-<div class="canteen-select-grid" id="canteen-select-grid">
-  <!-- Cards injected by menu.js -->
+<!-- Active canteen menu: hidden until a canteen is clicked -->
+<div class="canteen-shell" id="canteen-shell">
+  <div class="canteen-grid">
+    <div class="menu-section">
+      <div class="section-header">
+        <div class="section-header-left">
+          <button class="back-btn" id="back-to-canteens" onclick="showPlaceholder()">
+            <i class='bx bx-arrow-back'></i> All Canteens
+          </button>
+          <h2 id="canteen-heading">Today's Menu</h2>
+        </div>
+        <span style="color:var(--muted);font-size:0.85rem;" id="menu-date"></span>
+      </div>
+
+      <div class="meal-tabs" id="meal-tabs"></div>
+      <div id="tab-panels"></div>
+    </div>
+
+    <!-- Cart -->
+    <div class="cart-section">
+      <div class="cart-header">
+        <h3>Your Order</h3>
+        <span class="cart-count" id="cartCount">0</span>
+      </div>
+      <div class="cart-items" id="cartItems">
+        <p style="color:var(--muted);text-align:center;padding:40px 0;">Your cart is empty</p>
+      </div>
+      <div class="cart-total">
+        <span>Total</span>
+        <span id="cartTotal">₹0</span>
+      </div>
+      <div class="time-slot">
+        <h4>Pickup Time Slot</h4>
+        <div class="slot-options">
+          <div class="slot-option selected">12:00 PM</div>
+          <div class="slot-option">12:30 PM</div>
+          <div class="slot-option">1:00 PM</div>
+          <div class="slot-option">1:30 PM</div>
+          <div class="slot-option">2:00 PM</div>
+        </div>
+      </div>
+      <button class="checkout-btn" style="margin-top:16px;" onclick="checkout()">
+        Proceed to Checkout
+      </button>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script>
+  const STATIC_BASE = "{{ url_for('static', filename='') }}";
+  // Canteen display names (used by menu.js when rendering the sidebar)
+  const CANTEEN_NAMES = {
+    '1': 'Main Cafe',
+    '2': 'Tea Post',
+    '3': 'Tropical Bistro',
+    'main_cafe':   'Main Cafe',
+    'tea_post':    'Tea Post',
+    'bistro':      'Tropical Bistro',
+  };
+</script>
 <script src="{{ url_for('static', filename='js/menu.js') }}"></script>
 {% endblock %}

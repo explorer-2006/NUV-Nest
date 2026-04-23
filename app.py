@@ -1,32 +1,26 @@
-from flask import Flask, request, redirect, flash, render_template, url_for, jsonify, Response, stream_with_context
+from flask import Flask, request, redirect, flash, render_template, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, LoginManager, logout_user, login_user, current_user, login_required
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, EmailField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Email, Length
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3
 import os
 import re
-from dotenv import load_dotenv
-from openai import OpenAI
-from datetime import datetime
+from datetime import datetime, timezone
 
 
-# ── App instance & config ─────────────────────────────────────────────────────
-app = Flask(__name__, template_folder="templates")
-app.secret_key = "supersecretkeythatnooneissupposetoknow"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///UserRecords.db"
+app = Flask(__name__, template_folder="templates")   #instance
+app.secret_key = "supersecretkeythatnooneissupposetoknow"    #setting up the secret key for csrf protection
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///UserRecords.db"   
 
 db = SQLAlchemy(app)
-login_manager = LoginManager(app)
-login_manager.login_view = "login"   # redirect unauthenticated users to /login
+login_manager = LoginManager(app)      #setting up loginmanager and telling it which app to manage 
+login_manager.login_view = "login"     #if user not logged in will redirect to login page
 
 
-# AUTH APP 
 
-
-# ── School --- Branch mapping ───────────────────────────────────────────────────
+# ── School → Branch mapping ──
 SCHOOL_BRANCHES = {
     "SBL": [
         "BBA", "BBA Hons Business Analytics", "BBA LLB",
@@ -59,8 +53,9 @@ SCHOOL_BRANCHES = {
     ],
 }
 
-# ── User Model (SQLAlchemy) ───────────────────────────────────────────────────
+# ── User Model ──
 class User(db.Model, UserMixin):
+    __tablename__ = 'user'
     id       = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     enrollno = db.Column(db.String(20), nullable=False)
@@ -70,14 +65,49 @@ class User(db.Model, UserMixin):
     branch   = db.Column(db.String(100), nullable=False)
     semester = db.Column(db.Integer, nullable=False, default=1)
 
+    # Relationship: User has many Orders
+    orders = db.relationship('Order', backref='user', lazy=True,
+                             cascade='all, delete-orphan')
+
+
+# ── Canteen Models (SQLAlchemy) ──
+class Order(db.Model):
+    __tablename__ = 'orders'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    user_id       = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    total_amount  = db.Column(db.Integer, nullable=False)
+    time_slot     = db.Column(db.String(50), nullable=False)
+    canteen_id    = db.Column(db.String(10), nullable=False, default='')
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    items = db.relationship('OrderItem', backref='order', lazy=True,
+                            cascade='all, delete-orphan')
+
+
+class OrderItem(db.Model):
+    __tablename__ = 'order_items'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    order_id   = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    item_name  = db.Column(db.String(100), nullable=False)
+    price      = db.Column(db.Integer, nullable=False)
+    quantity   = db.Column(db.Integer, nullable=False)
+
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-# ── WTForms ──────────────────────────────────────────────────────────────────
-class RegistrationForm(FlaskForm):
+# Make user available in ALL templates without needing to pass explicitly each time
+@app.context_processor
+def inject_user():
+    return dict(user=current_user)
+
+
+# ── Forms ──
+class RegistrationForm(FlaskForm):   # setting up the class for the registration page 
     username = StringField("Username", validators=[DataRequired(), Length(min=3, max=15)])
     enrollno = StringField("Enrollment Number", validators=[DataRequired(), Length(min=8, max=8)])
     email    = EmailField("Email", validators=[DataRequired(), Email()])
@@ -89,14 +119,13 @@ class RegistrationForm(FlaskForm):
     )
     submit   = SubmitField("Register")
 
-class LoginForm(FlaskForm):
+class LoginForm(FlaskForm):    #setting up the class for the login page
     email    = EmailField("Email", validators=[DataRequired(), Email()])
     password = PasswordField("Password", validators=[DataRequired(), Length(min=6, max=12)])
     submit   = SubmitField("Login")
 
-
-# ── Helper ────────────────────────────────────────────────────────────────────
-def render_auth(active_form="login"):
+# ── Helper: render both forms together ──
+def render_auth(active_form="login"):  
     return render_template(
         "auth.html",
         login_form=LoginForm(),
@@ -105,47 +134,44 @@ def render_auth(active_form="login"):
     )
 
 
-# ── Auth Routes ───────────────────────────────────────────────────────────────
-
-# CONFLICT RESOLVED: app2 also had "/" mapped to its campus dashboard.
-# app1's register page keeps "/" as it is the entry point for new users.
-# app2's campus dashboard is moved to "/home"  (see Section 2).
+# ── Routes ──
 @app.route("/", methods=["GET", "POST"])
 def register():
-    form = RegistrationForm()
+    form = RegistrationForm()     #create an object for the registration class
 
-    if request.method == "GET":
+    if request.method == "GET":   #if request is get it will return the registration page
         return render_auth(active_form="register")
 
-    elif request.method == "POST":
-        if form.validate_on_submit():
-            school = request.form.get("school")
+    elif request.method == "POST": #elif request is post 
+        if form.validate_on_submit():    #will execute if all the fields are validated
+            school = request.form.get("school")  #get data 
             branch = request.form.get("branch")
 
             if not school or not branch:
                 flash("Please select your school and program.")
                 return render_auth(active_form="register")
 
-            if school not in SCHOOL_BRANCHES or branch not in SCHOOL_BRANCHES[school]:
+            if school not in SCHOOL_BRANCHES or branch not in SCHOOL_BRANCHES[school]: #this code is to verify that the school and branch exists and there was no misconduct from the client side
                 flash("Invalid school or program selected.")
                 return render_auth(active_form="register")
 
-            existing_user = User.query.filter_by(email=form.email.data).first()
+            existing_user = User.query.filter_by(email=form.email.data).first() 
             if existing_user:
                 flash("An account with this email already exists.")
                 return render_auth(active_form="register")
 
-            hashed_pw = generate_password_hash(form.password.data)
-            new_user = User(
+            
+            hashed_pw = generate_password_hash(form.password.data)  #to generate hash password
+            new_user = User(                       #object to store data which user entered in the registration page
                 username=form.username.data,
                 enrollno=form.enrollno.data,
                 email=form.email.data,
                 password=hashed_pw,
                 school=school,
                 branch=branch,
-                semester=int(form.semester.data)
+                semester=int(form.semester.data)  
             )
-            db.session.add(new_user)
+            db.session.add(new_user)                #store data in the database
             db.session.commit()
             flash("Account created! Please log in.")
             return redirect(url_for("login"))
@@ -155,27 +181,26 @@ def register():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    form = LoginForm()
+    form = LoginForm()                  #create object for the class
 
-    if request.method == "GET":
+    if request.method == "GET":          #if request is get 
         return render_auth(active_form="login")
 
-    elif request.method == "POST":
-        if form.validate_on_submit():
-            logged_in_user = User.query.filter_by(email=form.email.data).first()
-            if logged_in_user and check_password_hash(logged_in_user.password, form.password.data):
+    elif request.method == "POST":       #if request is post 
+        if form.validate_on_submit():     #check if all the data is validated
+            logged_in_user = User.query.filter_by(email=form.email.data).first()    #gets userdata from the table
+            if logged_in_user and check_password_hash(logged_in_user.password, form.password.data):     #verify the user data
                 login_user(logged_in_user)
                 return redirect(url_for("dashboard"))
             else:
-                flash("Invalid email or password.")
+                flash("Invalid email or password.")      #if data entered doesnot match it will flash an error
                 return render_auth(active_form="login")
         else:
             return render_auth(active_form="login")
 
 
-
 @app.route("/dashboard")
-@login_required
+@login_required                                         #protected page
 def dashboard():
     return render_template("dashboard.html", user=current_user)
 
@@ -187,56 +212,15 @@ def logout():
     flash("Logged out successfully.")
     return redirect(url_for("login"))
 
-
-# CONFLICT RESOLVED: both apps had "/chatbot".
-# app1's version required login and passed `user=current_user`.
-# app2's version was public and passed `active="chatbot"`.
-# Merged into one route: if authenticated, serve the full user-aware chatbot;
-# if not, still render the chatbot template in public/preview mode.
+# 1. Render chatbot page
 @app.route("/chatbot")
+@login_required
 def chatbot():
-    if current_user.is_authenticated:
-        return render_template("chatbot.html", user=current_user, active="chatbot")
-    return render_template("chatbot.html", active="chatbot")
-
-
-
-#  CAMPUS / CANTEEN APP 
-
-
-# ── Canteen SQLite helpers ────────────────────────────────────────────────────
-def get_db():
-    conn = sqlite3.connect('canteen.db')
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    conn = get_db()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS orders (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id       TEXT,
-            total_amount  INTEGER,
-            time_slot     TEXT,
-            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS order_items (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_id   INTEGER,
-            item_name  TEXT,
-            price      INTEGER,
-            quantity   INTEGER
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    return render_template("chatbot.html", user=current_user)
 
 
 # ── Campus page routes ────────────────────────────────────────────────────────
 
-# CONFLICT RESOLVED: app2's "/" (campus dashboard) → moved to "/home".
 @app.route("/home")
 def home():
     return render_template("dashboard.html", active="dashboard")
@@ -265,33 +249,48 @@ def about():
 def contact():
     return render_template("contact.html", active="contact")
 
+@app.route('/checkout')
+def checkout_page():
+    canteen = request.args.get('canteen', '1')
+    return render_template('checkout.html', canteen=canteen, active='canteen')
+
+@app.route('/past-orders')
+@login_required
+def past_orders():
+    return render_template('past-orders.html')
+
 
 # ── Menu image parser ─────────────────────────────────────────────────────────
 VALID_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
 
-CATEGORY_RULES = [
-    ('breakfast', ['paratha', 'poha', 'upma', 'idli', 'bread', 'roti']),
-    ('lunch',     ['dish', 'thali', 'dal', 'pav bhaji', 'chole', 'punjabi']),
-    ('snacks',    ['samosa', 'puff', 'dabeli', 'vadapav', 'sandwich', 'burger',
-                   'pizza', 'fries', 'toast', 'grill', 'bhel', 'nachos',
-                   'panini', 'salad', 'soup', 'tikki']),
-    ('dinner',    ['noodles', 'rice', 'manchurian', 'chilli paneer',
-                   'paneer chilli', 'fried rice']),
-    ('hot',       ['tea', 'chai', 'coffee', 'bournvita', 'chocolate',
-                   'cappuccino', 'mocha', 'latte', 'irish', 'kavo', 'green tea']),
-    ('cold',      ['cold coffee', 'milkshake', 'mojito', 'lemonade', 'soda',
-                   'punch', 'lemon', 'kala khatta', 'chili mango', 'mineral',
-                   'cold bournvita', 'cold coco', 'iced', 'smoothie']),
-    ('bites',     ['bun', 'khari', 'nankhatai', 'banana', 'biscuit']),
-    ('beverages', ['water', 'juice', 'lime', 'fresh lime']),
-]
+CATEGORY_RULES = {
+    'main_cafe': [
+        ('breakfast', ['paratha', 'poha', 'upma', 'idli', 'bread', 'handvo', 'masala oats', 'sabudana vada', 'wraps', 'khichu', 'masala noodles', 'masala noodles with cheese']),
+        ('lunch',     ['dish', 'thali', 'dal', 'pav bhaji', 'chole', 'punjabi']),
+        ('snacks',    ['samosa', 'dabeli', 'vadapav', 'sandwich', 'burger', 'pizza', 'fries', 'toast', 'grill', 'bhel', 'nachos', 'panini', 'salad', 'soup', 'tikki', 'bun']),
+        ('dinner',    ['noodles', 'rice', 'manchurian', 'chilli paneer', 'paneer chilli', 'fried rice']),
+        ('beverages', ['water', 'juice', 'lime', 'fresh lime', 'tea', 'coffee', 'cold coffee']),
+    ],
+    'tea_post': [
+        ('hot',       ['tea', 'chai', 'coffee', 'bournvita', 'chocolate', 'cappuccino', 'mocha', 'latte', 'irish', 'kavo', 'green tea', 'elaichi tea']),
+        ('cold',      ['cold coffee', 'milkshake', 'mojito', 'lemonade', 'soda', 'punch', 'lemon', 'kala khatta', 'chili mango', 'cold bournvita', 'cold coco', 'iced', 'smoothie']),
+        ('bites',     ['khari', 'nankhatai', 'biscuit', 'puff', 'samosa', 'bread', 'bun', 'toast']),
+    ],
+    'bistro': [
+        ('snacks',    ['burger', 'pizza', 'fries', 'sandwich', 'panini', 'nachos', 'tikki']),
+        ('pasta',     ['pasta', 'spaghetti', 'penne', 'macaroni']),
+        ('beverages', ['juice', 'soda', 'mojito', 'lemonade', 'smoothie', 'cold coffee', 'milkshake']),
+    ],
+}
 
-def assign_category(name_lower):
-    for category, keywords in CATEGORY_RULES:
+def assign_category(name_lower, canteen):
+    rules = CATEGORY_RULES.get(canteen, [])
+    for category, keywords in rules:
         for kw in keywords:
             if kw in name_lower:
                 return category
     return 'other'
+
 
 def strip_ext(filename):
     stem = filename
@@ -333,13 +332,25 @@ def parse_filename(filename):
 
 
 # ── Canteen API routes ────────────────────────────────────────────────────────
+CANTEEN_PARAM_MAP = {
+    '1': 'main_cafe',
+    '2': 'tea_post',
+    '3': 'bistro',
+}
+
 @app.route('/api/menu')
 def api_menu():
     images_dir = os.path.join(app.static_folder, 'images')
+
+    canteen_param  = request.args.get('canteen')
+    canteen_filter = CANTEEN_PARAM_MAP.get(canteen_param)
+
     items = []
     for canteen in sorted(os.listdir(images_dir)):
         canteen_path = os.path.join(images_dir, canteen)
         if not os.path.isdir(canteen_path):
+            continue
+        if canteen_filter and canteen != canteen_filter:
             continue
         for filename in sorted(os.listdir(canteen_path)):
             _, outermost_ext = os.path.splitext(filename)
@@ -349,7 +360,7 @@ def api_menu():
             if parsed is None:
                 continue
             name, price = parsed
-            category    = assign_category(name.lower())
+            category = assign_category(name.lower(), canteen)
             items.append({
                 'name':     name,
                 'price':    price,
@@ -361,53 +372,152 @@ def api_menu():
 
 
 @app.route('/api/order', methods=['POST'])
+@login_required
 def place_order():
     data = request.get_json()
-    conn = get_db()
-    cursor = conn.execute(
-        'INSERT INTO orders (user_id, total_amount, time_slot) VALUES (?, ?, ?)',
-        (data['user_id'], data['total'], data['time_slot'])
-    )
-    order_id = cursor.lastrowid
-    for item in data['items']:
-        conn.execute(
-            'INSERT INTO order_items (order_id, item_name, price, quantity) VALUES (?, ?, ?, ?)',
-            (order_id, item['name'], item['price'], item['qty'])
+
+    # DEBUG: Log what we received
+    app.logger.info(f"[place_order] User {current_user.id} sent: {data}")
+
+    if not data:
+        app.logger.warning("[place_order] No data provided")
+        return jsonify({'error': 'No data provided'}), 400
+
+    items = data.get('items', [])
+    if not items or not isinstance(items, list):
+        app.logger.warning("[place_order] Invalid items")
+        return jsonify({'error': 'Items must be a non-empty list'}), 400
+
+    # Process items — CONVERT strings to integers (frontend sends strings!)
+    processed_items = []
+    calculated_total = 0
+
+    for i, item in enumerate(items):
+        name = item.get('name', '')
+
+        # LENIENT: Try to convert price/qty to int, accept strings too
+        try:
+            price = int(item.get('price', 0))
+            qty = int(item.get('qty', item.get('quantity', 0)))
+        except (ValueError, TypeError):
+            app.logger.warning(f"[place_order] Item {i}: invalid price/qty — {item}")
+            return jsonify({'error': f'Item {i}: price and qty must be numbers'}), 400
+
+        if price <= 0 or qty <= 0:
+            app.logger.warning(f"[place_order] Item {i}: non-positive values")
+            return jsonify({'error': f'Item {i}: price and qty must be positive'}), 400
+
+        if not name:
+            return jsonify({'error': f'Item {i}: name is required'}), 400
+
+        processed_items.append({'name': name, 'price': price, 'qty': qty})
+        calculated_total += price * qty
+
+    # LENIENT: Convert total to int
+    try:
+        total = int(data.get('total', 0))
+    except (ValueError, TypeError):
+        app.logger.warning("[place_order] Invalid total")
+        return jsonify({'error': 'Total must be a number'}), 400
+
+    if total <= 0:
+        return jsonify({'error': 'Total must be positive'}), 400
+
+    # LENIENT: Allow small discrepancy (platform fees, tax, rounding up to ₹10)
+    if abs(total - calculated_total) > 10:
+        app.logger.warning(f"[place_order] Total mismatch: calc={calculated_total}, sent={total}")
+        # Use the larger of the two (trust frontend if they added fees)
+        total = max(total, calculated_total)
+
+    time_slot = data.get('time_slot', '')
+    if not time_slot:
+        return jsonify({'error': 'Time slot is required'}), 400
+
+    canteen_id = str(data.get('canteen_id', '1'))
+
+    try:
+        order = Order(
+            user_id=current_user.id,
+            total_amount=total,
+            time_slot=time_slot,
+            canteen_id=canteen_id
         )
-    conn.commit()
-    conn.close()
-    return jsonify({'message': 'Order placed successfully'})
+        db.session.add(order)
+        db.session.flush()
+
+        for item in processed_items:
+            db.session.add(OrderItem(
+                order_id=order.id,
+                item_name=item['name'],
+                price=item['price'],
+                quantity=item['qty']
+            ))
+
+        db.session.commit()
+
+        app.logger.info(f"[place_order] SUCCESS: Order {order.id} for user {current_user.id}")
+
+        return jsonify({
+            'message': 'Order placed successfully',
+            'order_id': order.id,
+            'success': True
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"[place_order] FAILED: {str(e)}")
+        return jsonify({'error': 'Server error. Please try again.'}), 500
 
 
+# This avoids type mismatch issues and is more secure
+@app.route('/api/orders', methods=['GET'])
+@login_required
+def get_orders():
+    """Fetch orders for the currently logged-in user."""
+    try:
+        orders = Order.query.filter_by(user_id=current_user.id)\
+                            .order_by(Order.created_at.desc()).all()
+
+        result = []
+        for order in orders:
+            result.append({
+                'order_id':   order.id,
+                'total':      order.total_amount,
+                'time_slot':  order.time_slot,
+                'canteen_id': order.canteen_id,
+                'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
+                'items': [
+                    {
+                        'name':  item.item_name,
+                        'price': item.price,
+                        'qty':   item.quantity,
+                    }
+                    for item in order.items
+                ],
+            })
+
+        return jsonify(result)
+
+    except Exception as e:
+        app.logger.error(f"Failed to fetch orders: {str(e)}")
+        return jsonify({'error': 'Failed to fetch orders'}), 500
+
+
+# Keep old endpoint for backward compatibility (redirects to new one)
 @app.route('/api/orders/<user_id>', methods=['GET'])
-def get_orders(user_id):
-    conn = get_db()
-    orders = conn.execute(
-        'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC',
-        (user_id,)
-    ).fetchall()
-    result = []
-    for order in orders:
-        items = conn.execute(
-            'SELECT * FROM order_items WHERE order_id = ?',
-            (order['id'],)
-        ).fetchall()
-        result.append({
-            'order_id':   order['id'],
-            'total':      order['total_amount'],
-            'time_slot':  order['time_slot'],
-            'created_at': order['created_at'],
-            'items': [
-                {'name': i['item_name'], 'price': i['price'], 'qty': i['quantity']}
-                for i in items
-            ]
-        })
-    conn.close()
-    return jsonify(result)
+@login_required
+def get_orders_legacy(user_id):
+    """Legacy endpoint — redirects to new /api/orders if user_id matches current user."""
+    if str(current_user.id) != str(user_id):
+        return jsonify({'error': 'Unauthorized'}), 403
+    # Delegate to the new endpoint
+    return get_orders()
 
+
+# Create tables on startup regardless of how the app is launched
+# (works with both `python app.py` and `flask run` / gunicorn)
+with app.app_context():
+    db.create_all()
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()   # creates UserRecords.db tables (SQLAlchemy)
-    init_db()             # creates canteen.db tables (raw sqlite3)
     app.run(debug=True)

@@ -1,3 +1,5 @@
+
+menu.css
 /* ══════════════════════════════════════════════
    NUV Nest — Canteen Selection Page (menu.css)
    ══════════════════════════════════════════════ */
@@ -9,7 +11,324 @@
   margin-bottom: 32px;
 }
 
-/* ── Selection Grid ────────────────────────────────────────── */
+/* ── Menu Layout: Sidebar + Main ────────────────────────────── */
+.menu-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  animation: fadeUp 0.4s var(--ease) 0.1s both;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────── */
+.canteen-sidebar {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 20px;
+  height: fit-content;
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-header {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 8px;
+  margin-bottom: 8px;
+}
+
+.canteen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Sidebar Item ──────────────────────────────────────────── */
+.canteen-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.canteen-sidebar-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--red);
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform 0.2s;
+}
+
+.canteen-sidebar-item:hover {
+  background: #f5f5f8;
+  border-color: var(--border);
+}
+
+.canteen-sidebar-item.active {
+  background: rgba(188,23,29,0.08);
+  border-color: var(--red);
+}
+
+.canteen-sidebar-item.active::before {
+  transform: scaleY(1);
+}
+
+.sidebar-item-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(188,23,29,0.08);
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.canteen-sidebar-item:hover .sidebar-item-icon,
+.canteen-sidebar-item.active .sidebar-item-icon {
+  background: var(--red);
+  color: white;
+}
+
+.sidebar-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-item-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.sidebar-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.meta-tag {
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.meta-tag.open {
+  background: rgba(22,163,74,0.1);
+  color: #16a34a;
+}
+
+.sidebar-item-arrow {
+  font-size: 1rem;
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: all 0.2s;
+  opacity: 0;
+}
+
+.canteen-sidebar-item:hover .sidebar-item-arrow,
+.canteen-sidebar-item.active .sidebar-item-arrow {
+  opacity: 1;
+  color: var(--red);
+}
+
+/* ── Reorder Button ────────────────────────────────────────── */
+.reorder-btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  border: 2px solid var(--red);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--red);
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reorder-btn:hover {
+  background: var(--red);
+  color: white;
+}
+
+/* ── Main Content Area ─────────────────────────────────────── */
+.menu-main {
+  min-height: 400px;
+}
+
+/* ── Reorder Modal ─────────────────────────────────────────── */
+.reorder-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.reorder-modal.active {
+  display: flex;
+}
+
+.reorder-modal-content {
+  background: var(--white);
+  border-radius: 20px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+
+.reorder-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.reorder-modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.reorder-modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.reorder-modal-close:hover {
+  background: var(--red);
+  color: white;
+}
+
+.reorder-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* ── Reorder Item ──────────────────────────────────────────── */
+.reorder-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.reorder-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.reorder-item-id {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.reorder-item-date {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.reorder-item-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.reorder-item-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: var(--muted);
+}
+
+.reorder-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.reorder-item-total {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.reorder-item-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--red);
+  color: white;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reorder-item-btn:hover {
+  opacity: 0.88;
+}
+
+/* ── Legacy Grid (Hidden) ──────────────────────────────────── */
 .canteen-select-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -18,7 +337,6 @@
   animation: fadeUp 0.4s var(--ease) 0.1s both;
 }
 
-/* ── Canteen Card ──────────────────────────────────────────── */
 .canteen-select-card {
   background: var(--white);
   border: 1px solid var(--border);
@@ -35,7 +353,6 @@
   color: inherit;
 }
 
-/* Accent top bar — revealed on hover */
 .canteen-select-card::before {
   content: '';
   position: absolute;
@@ -47,7 +364,6 @@
   transition: transform 0.3s var(--ease);
 }
 
-/* Subtle corner radial glow */
 .canteen-select-card::after {
   content: '';
   position: absolute;
@@ -73,7 +389,6 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-/* ── Card Icon ─────────────────────────────────────────────── */
 .select-card-icon {
   width: 60px;
   height: 60px;
@@ -91,7 +406,6 @@
   background: var(--red);
 }
 
-/* ── Card Body ─────────────────────────────────────────────── */
 .select-card-body { flex: 1; }
 
 .select-card-name {
@@ -108,7 +422,6 @@
   line-height: 1.6;
 }
 
-/* ── Card Meta Tags ────────────────────────────────────────── */
 .select-card-meta {
   display: flex;
   gap: 8px;
@@ -144,7 +457,6 @@
   flex-shrink: 0;
 }
 
-/* ── Arrow ─────────────────────────────────────────────────── */
 .select-card-arrow {
   position: absolute;
   top: 20px;
@@ -169,8 +481,53 @@
 }
 
 /* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .menu-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .canteen-sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+  }
+
+  .sidebar-header {
+    grid-column: 1 / -1;
+  }
+
+  .canteen-sidebar-item {
+    flex-direction: column;
+    text-align: center;
+    padding: 12px 8px;
+  }
+
+  .sidebar-item-text {
+    display: none;
+  }
+
+  .sidebar-item-arrow {
+    display: none;
+  }
+
+  .sidebar-item-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.6rem;
+  }
+
+  .reorder-btn {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 700px) {
   .canteen-select-grid {
     grid-template-columns: 1fr;
+  }
+
+  .reorder-modal-content {
+    max-height: 90vh;
   }
 }

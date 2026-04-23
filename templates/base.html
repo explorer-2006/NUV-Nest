@@ -10,7 +10,6 @@
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
   {% block extra_css %}{% endblock %}
   <style>
-    /* ── Logo Fallback ───────────────────────────────────────── */
     .college-logo {
       width: 42px;
       height: 42px;
@@ -40,8 +39,6 @@
       font-size: 1.4rem;
       color: white;
     }
-
-    /* ── Avatar Styles ─────────────────────────────────────── */
     .user-card .avatar {
       width: 40px;
       height: 40px;
@@ -72,10 +69,8 @@
 </head>
 <body>
 
-  <!-- ══ BLURRED BACKGROUND ══ -->
   <div class="bg-layer"></div>
 
-  <!-- ══ SIDEBAR ══ -->
   <aside class="sidebar" id="sidebar">
 
     <div class="toggle-btn" id="toggleBtn" title="Toggle sidebar">
@@ -98,6 +93,7 @@
         </div>
       </div>
 
+      {% block sidebar_nav %}
       <!-- Nav links -->
       <div class="nav-section">
         <div class="nav-label">Main</div>
@@ -138,6 +134,7 @@
           <i class='bx bx-log-out'></i><span>Logout</span>
         </a>
       </div>
+      {% endblock %}
 
       <div class="sidebar-footer">
         <div class="user-card">
@@ -149,50 +146,44 @@
         </div>
       </div>
 
-    </div><!-- end sidebar-inner -->
+    </div>
   </aside>
 
-  <!-- ══ MAIN WRAPPER ══ -->
   <div class="main-wrapper" id="mainWrapper">
 
-    <!-- Top Bar -->
-    <!-- Top Bar -->
-<header class="topbar">
-  <div class="topbar-title" style="display: none;">
-    <h1>{% block page_title %}{% endblock %}</h1>
-  </div>
-  <div class="topbar-actions" style="margin-left: auto;">
-    <a href="{{ url_for('about') }}">
-      <button class="btn-ghost">About Us</button>
-    </a>
-    <a href="{{ url_for('contact') }}">
-      <button class="btn-ghost">Contact Us</button>
-    </a>
-    <div class="avatar" title="{{ current_user.username if current_user.is_authenticated else 'Guest' }}">
-      {{ current_user.username[0]|upper if current_user.is_authenticated else 'G' }}
-    </div>
-  </div>
-</header>
+    <header class="topbar">
+      <div class="topbar-title" style="display: none;">
+        <h1>{% block page_title %}{% endblock %}</h1>
+      </div>
+      <div class="topbar-actions" style="margin-left: auto;">
+        <a href="{{ url_for('about') }}">
+          <button class="btn-ghost">About Us</button>
+        </a>
+        <a href="{{ url_for('contact') }}">
+          <button class="btn-ghost">Contact Us</button>
+        </a>
+        <div class="avatar" title="{{ current_user.username if current_user.is_authenticated else 'Guest' }}">
+          {{ current_user.username[0]|upper if current_user.is_authenticated else 'G' }}
+        </div>
+      </div>
+    </header>
 
-    <!-- Page Content -->
     <main class="page-content">
       {% block content %}{% endblock %}
     </main>
 
-  </div><!-- end main-wrapper -->
+  </div>
 
   <script>
-    // Sidebar toggle
-    const sidebar     = document.getElementById('sidebar');
+    const sidebar = document.getElementById('sidebar');
     const mainWrapper = document.getElementById('mainWrapper');
-    const toggleBtn   = document.getElementById('toggleBtn');
+    const toggleBtn = document.getElementById('toggleBtn');
 
     toggleBtn.addEventListener('click', () => {
       sidebar.classList.toggle('collapsed');
       mainWrapper.classList.toggle('expanded');
     });
 
-    // Live date
     const dateEl = document.getElementById('live-date');
     if (dateEl) {
       const now = new Date();
