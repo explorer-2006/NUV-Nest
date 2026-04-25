@@ -65,12 +65,12 @@ class User(db.Model, UserMixin):
     branch   = db.Column(db.String(100), nullable=False)
     semester = db.Column(db.Integer, nullable=False, default=1)
 
-    # Relationship: User has many Orders
+    # One user has many Orders
     orders = db.relationship('Order', backref='user', lazy=True,
                              cascade='all, delete-orphan')
 
 
-# ── Canteen Models (SQLAlchemy) ──
+# ── Canteen Models 
 class Order(db.Model):
     __tablename__ = 'orders'
 
@@ -513,9 +513,72 @@ def get_orders_legacy(user_id):
     # Delegate to the new endpoint
     return get_orders()
 
+# ── Mock Payment Routes ───────────────────────────────────────────────────────
+import uuid
 
+_pending_orders = {}  # in-memory: { mock_order_id: { cart data + status } }
+
+@app.route('/create-order', methods=['POST'])
+@login_required
+def create_order():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    mock_order_id = str(uuid.uuid4())[:12].upper()   # e.g. "A3F1-9B2C-41"
+    _pending_orders[mock_order_id] = {
+        'user_id':   current_user.id,
+        'items':     data.get('items', []),
+        'total':     data.get('total', 0),
+        'time_slot': data.get('time_slot', ''),
+        'canteen_id': str(data.get('canteen_id', '1')),
+        'status':    'pending'
+    }
+    return jsonify({'order_id': mock_order_id}), 200
+
+
+@app.route('/verify-payment', methods=['POST'])
+@login_required
+def verify_payment():
+    data = request.get_json()
+    order_id = data.get('order_id')
+    status   = data.get('status')   # "success" or "failed"
+
+    if not order_id or order_id not in _pending_orders:
+        return jsonify({'error': 'Invalid order ID'}), 400
+
+    pending = _pending_orders[order_id]
+
+    if status == 'success':
+        # Commit to DB (reuse existing Order/OrderItem models)
+        try:
+            order = Order(
+                user_id=pending['user_id'],
+                total_amount=pending['total'],
+                time_slot=pending['time_slot'],
+                canteen_id=pending['canteen_id']
+            )
+            db.session.add(order)
+            db.session.flush()
+            for item in pending['items']:
+                db.session.add(OrderItem(
+                    order_id=order.id,
+                    item_name=item['name'],
+                    price=int(item['price']),
+                    quantity=int(item['qty'])
+                ))
+            db.session.commit()
+            _pending_orders[order_id]['status'] = 'success'
+            return jsonify({'success': True, 'db_order_id': order.id}), 200
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"[verify_payment] DB error: {e}")
+            return jsonify({'error': 'Server error'}), 500
+    else:
+        _pending_orders[order_id]['status'] = 'failed'
+        return jsonify({'success': False, 'message': 'Payment failed'}), 200
+    
 # Create tables on startup regardless of how the app is launched
-# (works with both `python app.py` and `flask run` / gunicorn)
 with app.app_context():
     db.create_all()
 

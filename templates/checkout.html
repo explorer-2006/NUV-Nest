@@ -350,7 +350,6 @@
       box-shadow: 0 4px 12px rgba(22,163,74,0.25);
     }
 
-    .time-info {}
 
     .time-value {
       font-family: 'Syne', sans-serif;
@@ -637,7 +636,7 @@
       cursor: not-allowed;
     }
 
-    /* ── Modal ── */
+    /* ── Confirmation Modal ── */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -789,6 +788,116 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Mock Payment Modal ── */
+    #pay-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #pay-modal-overlay.active { display: flex; }
+
+    .pay-modal {
+      background: var(--white);
+      border-radius: 24px;
+      padding: 32px 28px 28px;
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+      animation: fadeUp 0.3s ease;
+    }
+
+    .pay-modal-icon { font-size: 2.6rem; margin-bottom: 12px; }
+
+    .pay-modal-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 6px;
+      letter-spacing: -0.02em;
+    }
+
+    .pay-modal-amount {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--red);
+      letter-spacing: -0.03em;
+      margin-bottom: 4px;
+    }
+
+    .pay-modal-sub {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .pay-modal-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 22px;
+      line-height: 1.5;
+    }
+
+    .pay-btns {
+      display: flex;
+      gap: 10px;
+    }
+
+    .pay-btn {
+      flex: 1;
+      padding: 13px 0;
+      border: none;
+      border-radius: 14px;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+
+    .pay-btn:active:not(:disabled) { transform: scale(0.97); }
+
+    .pay-btn.success {
+      background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+      color: white;
+      box-shadow: 0 4px 14px rgba(22,163,74,0.3);
+    }
+
+    .pay-btn.fail {
+      background: var(--bg);
+      color: var(--red);
+      border: 1.5px solid var(--red);
+    }
+
+    .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .pay-result {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: none;
+      line-height: 1.4;
+    }
+
+    .pay-result.ok  { background: #EDFAF3; color: #16A34A; display: block; border: 1px solid #B7EDD0; }
+    .pay-result.err { background: #FFF0F0; color: var(--red); display: block; border: 1px solid #FECDD3; }
+    .pay-result.loading { background: var(--bg); color: var(--muted); display: block; border: 1px solid var(--border); }
+
     /* ── Responsive ── */
     @media (max-width: 860px) {
       .checkout-grid { grid-template-columns: 1fr; }
@@ -834,8 +943,24 @@
         <span class="bar-total-amount" id="bar-total">₹0</span>
       </div>
       <button class="place-order-btn" id="place-order-btn" onclick="placeOrder()">
-        Place Order →
+        Proceed to Pay →
       </button>
+    </div>
+  </div>
+
+  <!-- ── Mock Payment Modal ── -->
+  <div id="pay-modal-overlay">
+    <div class="pay-modal">
+      <div class="pay-modal-icon">💳</div>
+      <div class="pay-modal-title">Mock Payment</div>
+      <div class="pay-modal-amount" id="pay-modal-amount">₹0</div>
+      <div class="pay-modal-sub">Simulated payment gateway</div>
+      <div class="pay-modal-note">🧪 This is a test environment. Choose an outcome below to simulate the payment result.</div>
+      <div class="pay-btns">
+        <button class="pay-btn success" id="btn-pay-success" onclick="simulatePayment('success')">✓ Pay Success</button>
+        <button class="pay-btn fail"    id="btn-pay-fail"    onclick="simulatePayment('failed')">✕ Pay Fail</button>
+      </div>
+      <div class="pay-result" id="pay-result"></div>
     </div>
   </div>
 
@@ -1024,7 +1149,7 @@
                 <span class="s-value">₹${total}</span>
               </div>
               <button class="place-order-card-btn" id="place-order-card-btn" onclick="placeOrder()">
-                Place Order →
+                Proceed to Pay →
               </button>
               <div class="secure-badge">🔒 Secure &amp; Encrypted Order</div>
             </div>
@@ -1035,35 +1160,88 @@
       bottomBar.style.display = 'block';
     }
 
+    // ── Mock Payment Flow ─────────────────────────────────────────────────────
+
+    let _mockOrderId = null;
+
     async function placeOrder() {
-      const btnBar = document.getElementById('place-order-btn');
+      const btnBar  = document.getElementById('place-order-btn');
       const btnCard = document.getElementById('place-order-card-btn');
       const data = getCheckoutData();
       if (!data || !data.items || data.items.length === 0) { alert('Cart is empty!'); return; }
 
-      [btnBar, btnCard].forEach(b => { if (b) { b.disabled = true; b.innerHTML = '<span class="spinner"></span> Processing…'; }});
+      [btnBar, btnCard].forEach(b => { if (b) { b.disabled = true; b.innerHTML = '<span class="spinner"></span> Processing…'; } });
 
-      const canteen = CANTEEN_CONFIG[data.canteenId] || { key: 'unknown', prep: null };
+      const total = data.items.reduce((s, i) => s + i.price * i.qty, 0);
+
       try {
-        const res = await fetch('/api/order', {
+        const res = await fetch('/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            user_id: 'user_1',
-            total: data.items.reduce((s, i) => s + i.price * i.qty, 0),
-            time_slot: data.timeSlot,
-            canteen_id: data.canteenId,
-            items: data.items.map(i => ({ name: i.name, price: i.price, qty: i.qty }))
+            items:      data.items.map(i => ({ name: i.name, price: i.price, qty: i.qty })),
+            total:      total,
+            time_slot:  data.timeSlot,
+            canteen_id: data.canteenId
           })
         });
         const result = await res.json();
-        if (res.ok) { showConfirmation(result.order_id, canteen, data); }
-        else { throw new Error(result.message || 'Order failed'); }
+        if (!res.ok) throw new Error(result.error || 'Failed to create order');
+
+        _mockOrderId = result.order_id;
+
+        // Reset and show payment modal
+        document.getElementById('pay-modal-amount').textContent = '₹' + total;
+        document.getElementById('pay-result').className = 'pay-result';
+        document.getElementById('pay-result').textContent = '';
+        document.getElementById('pay-result').style.display = 'none';
+        document.getElementById('btn-pay-success').disabled = false;
+        document.getElementById('btn-pay-fail').disabled = false;
+        document.getElementById('pay-modal-overlay').classList.add('active');
+
       } catch (err) {
-        alert('Failed to place order: ' + err.message);
-        [btnBar, btnCard].forEach(b => { if (b) { b.disabled = false; b.innerHTML = 'Place Order →'; }});
+        alert('Could not initiate payment: ' + err.message);
+      } finally {
+        [btnBar, btnCard].forEach(b => { if (b) { b.disabled = false; b.innerHTML = 'Proceed to Pay →'; } });
       }
     }
+
+    async function simulatePayment(status) {
+      const btnOk   = document.getElementById('btn-pay-success');
+      const btnFail = document.getElementById('btn-pay-fail');
+      const resultEl = document.getElementById('pay-result');
+
+      [btnOk, btnFail].forEach(b => b.disabled = true);
+      resultEl.className = 'pay-result loading';
+      resultEl.textContent = 'Processing payment…';
+      resultEl.style.display = 'block';
+
+      try {
+        const res = await fetch('/verify-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: _mockOrderId, status })
+        });
+        const result = await res.json();
+
+        if (status === 'success' && result.success) {
+          document.getElementById('pay-modal-overlay').classList.remove('active');
+          const data = getCheckoutData();
+          const canteen = CANTEEN_CONFIG[data.canteenId] || { name: 'Canteen', emoji: '🍽️' };
+          showConfirmation(result.db_order_id, canteen, data);
+        } else {
+          resultEl.className = 'pay-result err';
+          resultEl.textContent = '✕ Payment failed. Please try again.';
+          [btnOk, btnFail].forEach(b => b.disabled = false);
+        }
+      } catch (err) {
+        resultEl.className = 'pay-result err';
+        resultEl.textContent = '✕ Network error. Please try again.';
+        [btnOk, btnFail].forEach(b => b.disabled = false);
+      }
+    }
+
+    // ── Confirmation ──────────────────────────────────────────────────────────
 
     function showConfirmation(orderId, canteen, data) {
       const total = data.items.reduce((s, i) => s + i.price * i.qty, 0);
@@ -1076,6 +1254,7 @@
     }
 
     function finishCheckout() { window.location.href = '/dashboard'; }
+
     document.addEventListener('DOMContentLoaded', renderCheckout);
   </script>
 </body>
