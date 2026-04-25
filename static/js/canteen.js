@@ -1,6 +1,4 @@
-/* ══════════════════════════════════════════════
-   NUV Nest — Canteen Menu + Cart (canteen.js)
-   ══════════════════════════════════════════════ */
+/*Canteen Menu + Cart */
 
 const CANTEEN_CONFIG = {
   1: { key: 'main_cafe', name: 'Main Canteen'     },
@@ -8,90 +6,90 @@ const CANTEEN_CONFIG = {
   3: { key: 'bistro',    name: 'Tropical Bistro'   },
 };
 
-function getCanteenConfig() {
+function getCanteenConfig() {                                                  //Returns config object
   const param = new URLSearchParams(window.location.search).get('canteen');
   return CANTEEN_CONFIG[param] || null;
-}
+}                                                                                
 
-let DYNAMIC_MENU = {};
-let cart = [];
-let cartItemsEl, cartCountEl, cartTotalEl;
+let DYNAMIC_MENU = {};           //processed menu from backend
+let cart = [];                   //stores selected items 
+let cartItemsEl, cartCountEl, cartTotalEl;    
 
-function addToCart(name, price) {
+function addToCart(name, price) {                                    //Check if item already exists in cart, if yes increment qty, else add new item
   const existing = cart.find(i => i.name === name);
   if (existing) { existing.qty++; } else { cart.push({ name, price, qty: 1 }); }
-  updateCart();
+  updateCart();                       //Always refresh UI after change
 }
 
 function updateQty(name, delta) {
   const item = cart.find(i => i.name === name);
   if (item) {
     item.qty += delta;
-    if (item.qty <= 0) cart = cart.filter(i => i.name !== name);
-  }
+    if (item.qty <= 0) cart = cart.filter(i => i.name !== name);      //Remove item if quantity becomes 0
+  } 
   updateCart();
 }
 
 function updateCart() {
-  cartCountEl.textContent = cart.reduce((s, i) => s + i.qty, 0);
-  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  cartCountEl.textContent = cart.reduce((s, i) => s + i.qty, 0);   //Update total quantity in cart 
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);    //Calculate total price
   cartTotalEl.textContent = '₹' + total;
   if (cart.length === 0) {
     cartItemsEl.innerHTML = '<p style="color:var(--muted);text-align:center;padding:40px 0;">Your cart is empty</p>';
     return;
   }
   cartItemsEl.innerHTML = cart.map(item => `
-    <div class="cart-item">
-      <div class="cart-item-info">
-        <div class="cart-item-name">${item.name}</div>
-        <div class="cart-item-price">₹${item.price} × ${item.qty}</div>
+    <div class="cart-item">               //each item in cart with name, price, qty and buttons to update qty
+      <div class="cart-item-info">        //Item name and price
+        <div class="cart-item-name">${item.name}</div>              //item name 
+        <div class="cart-item-price">₹${item.price} × ${item.qty}</div>    //item price and quantity
       </div>
-      <div class="quantity-control">
-        <button class="qty-btn" onclick="updateQty('${item.name.replace(/'/g, "\\'")}', -1)">−</button>
-        <span>${item.qty}</span>
-        <button class="qty-btn" onclick="updateQty('${item.name.replace(/'/g, "\\'")}', 1)">+</button>
+      <div class="quantity-control">          //Buttons to decrease or increase quantity
+        <button class="qty-btn" onclick="updateQty('${item.name.replace(/'/g, "\\'")}', -1)">−</button>         //Decrease quantity button
+        <span>${item.qty}</span>    //Display current quantity
+        <button class="qty-btn" onclick="updateQty('${item.name.replace(/'/g, "\\'")}', 1)">+</button>           //Increase quantity button
       </div>
     </div>
   `).join('');
 }
 
 function checkout() {
-  if (cart.length === 0) {
+  if (cart.length === 0) {                             //Prevent checkout if cart is empty
     alert('Please add items to your cart first!');
     return;
   }
-  const selectedSlot = document.querySelector('.slot-option.selected');
-  if (!selectedSlot) {
+  const selectedSlot = document.querySelector('.slot-option.selected');                     
+  if (!selectedSlot) {                                  //Prevent checkout if no pickup time slot is selected
     alert('Please select a pickup time slot!');
     return;
   }
-  const canteenId = new URLSearchParams(window.location.search).get('canteen') || '1';
+  const canteenId = new URLSearchParams(window.location.search).get('canteen') || '1';        ///menu?canteen=2
   const checkoutData = {
     canteenId: canteenId,
     timeSlot: selectedSlot.textContent.trim(),
     items: cart.map(i => ({ name: i.name, price: i.price, qty: i.qty }))
   };
-  localStorage.setItem('nuv_checkout', JSON.stringify(checkoutData));
-  window.location.href = '/checkout';
+  localStorage.setItem('nuv_checkout', JSON.stringify(checkoutData));   //Store checkout data in localStorage to be retrieved on checkout page
+  window.location.href = '/checkout';    //Redirect to checkout page
 }
 
 function showTab(tabKey) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));      //Remove active from all tab buttons
   document.querySelectorAll('.meal-tab').forEach(t => t.classList.remove('active'));
-  const panel = document.getElementById('tab-' + tabKey);
-  if (panel) panel.classList.add('active');
-  const tabBtn = document.querySelector(`.meal-tab[data-tab="${tabKey}"]`);
-  if (tabBtn) tabBtn.classList.add('active');
+  const panel = document.getElementById('tab-' + tabKey);    //Get the selected tab’s content panel
+  if (panel) panel.classList.add('active');          //Activate the selected panel
+  const tabBtn = document.querySelector(`.meal-tab[data-tab="${tabKey}"]`);         //Get the clicked tab button
+  if (tabBtn) tabBtn.classList.add('active');      //Highlights the selected tab
 }
 
-function buildItemCard(item) {
-  const base = (typeof STATIC_BASE !== 'undefined' ? STATIC_BASE : '/static/');
-  const imgSrc = base + 'images/' + item.img;
-  const safeName = item.name.replace(/'/g, "\\'");
+function buildItemCard(item) {    //Builds HTML for a menu item card, including image, name, price, description and add to cart button
+  const base = (typeof STATIC_BASE !== 'undefined' ? STATIC_BASE : '/static/');      //Construct image source URL, ensuring it works regardless of how the image path is stored in the data
+  const imgSrc = base + 'images/' + item.img;  
+  const safeName = item.name.replace(/'/g, "\\'");  //Escape single quotes in item name for use in onclick handler
   return `
     <div class="menu-item">
       <div class="item-image">
-        <img src="${imgSrc}" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+        <img src="${imgSrc}" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>  //Show image if it loads, otherwise hide img and show emoji fallback
         <span class="item-image-emoji" style="display:none;">🍴</span>
       </div>
       <div class="item-details">
@@ -103,41 +101,42 @@ function buildItemCard(item) {
     </div>`;
 }
 
-function renderMenu(canteenKey) {
+function renderMenu(canteenKey) {                    //Renders the menu for the selected canteen by creating tab buttons and content panels based on the structured menu data. 
+                                                    //It dynamically builds the HTML for each menu item using the buildItemCard function and organizes them into their respective categories (tabs).
   const canteenData = DYNAMIC_MENU[canteenKey];
   if (!canteenData) return;
-  const tabsEl = document.getElementById('meal-tabs');
-  const panelsEl = document.getElementById('tab-panels');
-  tabsEl.innerHTML = '';
-  panelsEl.innerHTML = '';
-  Object.keys(canteenData).forEach((tabKey, index) => {
-    const section = canteenData[tabKey];
-    const btn = document.createElement('div');
+  const tabsEl = document.getElementById('meal-tabs');  //where buttons go
+  const panelsEl = document.getElementById('tab-panels');   //where content goes
+  tabsEl.innerHTML = '';    //Removes previous menu before rendering new one
+  panelsEl.innerHTML = '';  //Clears existing tabs and panels to prepare for new content
+  Object.keys(canteenData).forEach((tabKey, index) => {           //tabkey - category key like breakfast, lunch etc. index - to set first tab as active by default
+    const section = canteenData[tabKey];                          //Create tab button for each category, setting the first one as active by default
+    const btn = document.createElement('div');                    //Builds the HTML for a menu item card, including image, name, price, description and add to cart button
     btn.className = 'meal-tab' + (index === 0 ? ' active' : '');
     btn.dataset.tab = tabKey;
-    btn.textContent = section.label;
-    btn.addEventListener('click', () => showTab(tabKey));
-    tabsEl.appendChild(btn);
-    const panel = document.createElement('div');
-    panel.id = 'tab-' + tabKey;
+    btn.textContent = section.label;                            //Set the button text to the category label (e.g., "Breakfast", "Lunch")
+    btn.addEventListener('click', () => showTab(tabKey));       //add
+    tabsEl.appendChild(btn); 
+    const panel = document.createElement('div');   //creates panel for each category 
+    panel.id = 'tab-' + tabKey;             
     panel.className = 'tab-content' + (index === 0 ? ' active' : '');
     panel.innerHTML = `<div class="menu-items">${section.items.map(buildItemCard).join('')}</div>`;
     panelsEl.appendChild(panel);
   });
 }
 
-function setPageMeta(canteenName) {
+function setPageMeta(canteenName) {              //Sets the page heading and date based on the selected canteen. It updates the text content of the heading element to display the canteen name followed by "Menu". This function ensures that the page displays relevant information about the menu being viewed.
   const heading = document.getElementById('canteen-heading');
   const dateEl = document.getElementById('menu-date');
   if (heading) heading.textContent = canteenName + ' Menu';
   if (dateEl) {
-    dateEl.textContent = new Date().toLocaleDateString('en-IN', {
+    dateEl.textContent = new Date().toLocaleDateString('en-IN', {    //Formats the current date in a human-readable format using the toLocaleDateString method with options for weekday, day, month, and year.
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
     });
   }
 }
 
-function transformMenuData(flatList) {
+function transformMenuData(flatList) {   //Transforms the flat list of menu items from the backend into a structured format organized by canteen and category. 
   const result = {};
   flatList.forEach(item => {
     const canteenKey = item.canteen;
@@ -147,7 +146,7 @@ function transformMenuData(flatList) {
       const label = categoryKey.charAt(0).toUpperCase() + categoryKey.slice(1);
       result[canteenKey][categoryKey] = { label, items: [] };
     }
-    const img = item.image.startsWith('images/') ? item.image.slice('images/'.length) : item.image;
+    const img = item.image.startsWith('images/') ? item.image.slice('images/'.length) : item.image;  // Normalize image path by removing 'images/' prefix if it exists.
     result[canteenKey][categoryKey].items.push({
       name: item.name,
       price: item.price,
@@ -177,11 +176,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   try {
-    const response = await fetch('/api/menu');
-    if (!response.ok) throw new Error(`API returned ${response.status}`);
-    const flatList = await response.json();
-    DYNAMIC_MENU = transformMenuData(flatList);
-    if (!DYNAMIC_MENU[config.key]) {
+    const response = await fetch('/api/menu');     //Fetch the menu data from the backend API endpoint.
+    if (!response.ok) throw new Error(`API returned ${response.status}`);  // If the response is not successful, throw an error to be caught in the catch block.
+    const flatList = await response.json();      
+    DYNAMIC_MENU = transformMenuData(flatList);        //transforms data into js object with canteen keys and category keys.
+    if (!DYNAMIC_MENU[config.key]) {      //If backend doesn’t have this canteen == redirect
       window.location.href = '/menu';
       return;
     }
