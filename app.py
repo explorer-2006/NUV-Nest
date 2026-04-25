@@ -12,8 +12,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 
-#load_dotenv()   #loading the api key stored in the env file
-#client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  #setting up the client 
+load_dotenv()   #loading the api key stored in the env file
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  #setting up the client 
 
 
 app = Flask(__name__, template_folder="templates")   #instance
@@ -660,120 +660,16 @@ def get_orders():
         return jsonify({'error': 'Failed to fetch orders'}), 500
 
 
-
-# Razorpay
-
-RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
-RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")  
-
-# Initialise the official Razorpay Python client with our credentials
-rz = razorpay.Client(auth=(RZP_KEY_ID, RZP_SECRET))
-
-
-@app.route('/create-order', methods=['POST'])
+# Keep old endpoint for backward compatibility (redirects to new one)
+@app.route('/api/orders/<user_id>', methods=['GET'])
 @login_required
-def create_order():
-    data = request.get_json() or {}
-    # Extract the three fields checkout.js always sends
-    items      = data.get('items', [])        # list of { name, price, qty }
-    time_slot  = data.get('time_slot', '')   
-    canteen_id = str(data.get('canteen_id', '1'))  # cast to str to match DB column type
-
-   
-    if not items:
-        return jsonify({'error': 'Cart is empty'}), 400
-    total = sum(int(i['price']) * int(i['qty']) for i in items)
-    try:
-        order = Order(
-            user_id      = current_user.id,
-            total_amount = total,
-            time_slot    = time_slot,
-            canteen_id   = canteen_id,
-            status       = 'pending',   # will become 'success' after payment
-        )
-        db.session.add(order)  # add the parent order first to get its ID for the child items
-        db.session.flush()  # flush to generate order.id without committing yet
-
-        # Create one OrderItem row per cart item, linked to the parent order
-        db.session.add_all([
-            OrderItem(
-                order_id  = order.id,
-                item_name = i['name'],
-                price     = int(i['price']),
-                quantity  = int(i['qty']),
-            )
-            for i in items
-        ])
-
-        db.session.commit()  # commit order + all items together atomically
-
-    except Exception as e:
-        db.session.rollback()  # undo everything if anything went wrong
-        app.logger.error(f"[create_order] DB error: {e}")  # Log the error for debugging
-        return jsonify({'error': 'Could not create order'}), 500   # 500 = internal server error 
-    try:
-        rz_order = rz.order.create({
-            'amount':          total * 100,  # convert Rupees to paise
-            'currency':        'INR',
-            'payment_capture': 1,            # auto-capture , no manual capture needed
-        })
-    except Exception as e:
-        # if Razorpay API was unreachable or rejected the request
-        app.logger.error(f"[create_order] Razorpay error: {e}")
-        return jsonify({'error': str(e)}), 502  # 502 = bad gateway (upstream error)
-
-    app.logger.info(
-        f"[create_order] DB order {order.id}, Razorpay {rz_order['id']} for ₹{total}"
-    )
-
-    # Return everything the browser needs to open the Razorpay modal
-    return jsonify({
-        'razorpay_order_id': rz_order['id'],  # passed to Razorpay modal as order_id
-        'amount':            total * 100,      # in paise — modal needs the same unit
-        'currency':          'INR',
-        'db_order_id':       order.id,         # our internal ID; sent back in /confirm-order
-    })
-
-
-@app.route('/confirm-order', methods=['POST'])
-@login_required
-def confirm_order():
-    data        = request.get_json() or {}
-    db_order_id = data.get('db_order_id')          # our internal DB primary key
-    payment_id  = data.get('razorpay_payment_id', '')  # Razorpay's payment reference
-
-    # Look up the order and make sure it belongs to the current user and is still pending
-    order = Order.query.get(db_order_id)
-    if not order or order.user_id != current_user.id or order.status != 'pending':
-        return jsonify({'error': 'Order not found or already processed'}), 404
-
-    # Update the order status and store the payment ID
-    order.status     = 'success'   # mark as paid
-    order.payment_id = payment_id  # store for future receipts
-    db.session.commit()
-
-    app.logger.info(f"[confirm_order] Order {order.id} marked success, payment {payment_id}")
-    return jsonify({'success': True})
-
-
-@app.route('/payment-success')
-@login_required
-def payment_success():
-    return render_template(
-        'success.html',
-        payment_id = request.args.get('payment_id', ''),  
-        order_id   = request.args.get('order_id', ''),   
-        active     = 'canteen',
-    )
-
-
-@app.route('/payment-failed')
-@login_required
-def payment_failed():
-    return render_template('failed.html', active='canteen')
-
-
-
+def get_orders_legacy(user_id):
+    """Legacy endpoint — redirects to new /api/orders if user_id matches current user."""
+    if str(current_user.id) != str(user_id):
+        return jsonify({'error': 'Unauthorized'}), 403
+    # Delegate to the new endpoint
+    return get_orders()
+    
 # Create tables on startup regardless of how the app is launched
 with app.app_context():
     db.create_all()
