@@ -1,0 +1,3 @@
+RAZORPAY_KEY_ID = rzp_test_Si1A3V9vsulBjN
+RAZORPAY_KEY_SECRET = BFmCZzhsjQf6blUQ0nEv2xg0
+FLASK_SECRET_KEY = supersecretkeythatnooneissupposetoknow

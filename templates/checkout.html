@@ -1,1261 +1,538 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Checkout — NUV Nest</title>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --red: #C8102E;
-      --red-dark: #a00d24;
-      --red-glow: rgba(200,16,46,0.15);
-      --bg: #F5F3EF;
-      --white: #FFFFFF;
-      --text: #1A1A1A;
-      --muted: #7B7468;
-      --border: #E8E4DF;
-      --green: #1A6B3C;
-      --green-bg: #EDFAF3;
-      --amber: #92400E;
-      --amber-bg: #FFFBEB;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      padding-bottom: 100px;
-      min-height: 100vh;
-    }
-
-    /* ── Background Texture ── */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: radial-gradient(circle at 20% 20%, rgba(200,16,46,0.04) 0%, transparent 50%),
-                        radial-gradient(circle at 80% 80%, rgba(200,16,46,0.03) 0%, transparent 50%);
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    /* ── Header ── */
-    .page-header {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      padding: 14px 20px;
-      background: rgba(245,243,239,0.9);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      animation: slideDown 0.4s ease;
-    }
-
-    @keyframes slideDown {
-      from { transform: translateY(-100%); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    .page-header-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .back-btn {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      border: none;
-      background: var(--red);
-      color: white;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      transition: all 0.2s;
-      box-shadow: 0 4px 12px var(--red-glow);
-      flex-shrink: 0;
-    }
-
-    .back-btn:hover {
-      transform: scale(1.08);
-      box-shadow: 0 6px 20px rgba(200,16,46,0.3);
-    }
-
-    .header-title-group {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .header-eyebrow {
-      font-size: 0.65rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--red);
-      line-height: 1;
-    }
-
-    .header-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.25rem;
-      font-weight: 800;
-      color: var(--text);
-      line-height: 1.2;
-      letter-spacing: -0.02em;
-    }
-
-    .header-step {
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .step-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--border);
-    }
-
-    .step-dot.active {
-      background: var(--red);
-      width: 20px;
-      border-radius: 4px;
-    }
-
-    /* ── Main Layout ── */
-    .checkout-wrapper {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 24px 20px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .checkout-grid {
-      display: grid;
-      grid-template-columns: 1fr 300px;
-      gap: 20px;
-      align-items: start;
-    }
-
-    .left-col { display: flex; flex-direction: column; gap: 16px; }
-
-    /* ── Section Cards ── */
-    .card {
-      background: var(--white);
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      overflow: hidden;
-      animation: fadeUp 0.5s ease both;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-      transition: box-shadow 0.2s;
-    }
-
-    .card:hover {
-      box-shadow: 0 6px 24px rgba(0,0,0,0.07);
-    }
-
-    .card:nth-child(1) { animation-delay: 0.05s; }
-    .card:nth-child(2) { animation-delay: 0.12s; }
-    .card:nth-child(3) { animation-delay: 0.18s; }
-    .card:nth-child(4) { animation-delay: 0.24s; }
-
-    @keyframes fadeUp {
-      from { transform: translateY(20px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    .card-header {
-      padding: 16px 20px 12px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .card-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 10px;
-      background: var(--red-glow);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      flex-shrink: 0;
-    }
-
-    .card-label {
-      font-family: 'Syne', sans-serif;
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .card-body {
-      padding: 16px 20px;
-    }
-
-    /* ── Canteen Badge ── */
-    .canteen-display {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .canteen-avatar {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #C8102E 0%, #8B0C20 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      flex-shrink: 0;
-    }
-
-    .canteen-name {
-      font-family: 'Syne', sans-serif;
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .canteen-sub {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 1px;
-    }
-
-    .canteen-pill {
-      margin-left: auto;
-      background: var(--red-glow);
-      color: var(--red);
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 20px;
-      letter-spacing: 0.04em;
-    }
-
-    /* ── Order Items ── */
-    .order-item {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 12px 0;
-      border-bottom: 1px dashed var(--border);
-      transition: background 0.15s;
-    }
-
-    .order-item:last-of-type {
-      border-bottom: none;
-    }
-
-    .item-thumb {
-      width: 42px;
-      height: 42px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-
-    .item-details { flex: 1; }
-
-    .item-name {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--text);
-    }
-
-    .item-qty-price {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    .item-price-badge {
-      background: #F5F3EF;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 5px 10px;
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--text);
-      white-space: nowrap;
-    }
-
-    .subtotal-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 14px 0 0;
-      margin-top: 8px;
-      border-top: 2px solid var(--border);
-    }
-
-    .subtotal-label {
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
-      font-size: 0.9rem;
-      color: var(--text);
-    }
-
-    .subtotal-value {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: 1rem;
-      color: var(--red);
-    }
-
-    /* ── Time Slot ── */
-    .time-display {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      background: var(--green-bg);
-      border: 1.5px solid #B7EDD0;
-      border-radius: 14px;
-      padding: 14px 18px;
-    }
-
-    .time-icon-wrap {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      flex-shrink: 0;
-      box-shadow: 0 4px 12px rgba(22,163,74,0.25);
-    }
-
-
-    .time-value {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.1rem;
-      font-weight: 800;
-      color: var(--green);
-      letter-spacing: -0.01em;
-    }
-
-    .time-sub {
-      font-size: 0.72rem;
-      color: #4ADE80;
-      font-weight: 500;
-      color: #2D7A4F;
-      margin-top: 1px;
-    }
-
-    /* ── Prep Time ── */
-    .prep-display {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      background: var(--amber-bg);
-      border: 1.5px solid #FDE68A;
-      border-radius: 14px;
-      padding: 14px 18px;
-    }
-
-    .prep-icon-wrap {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      flex-shrink: 0;
-      box-shadow: 0 4px 12px rgba(217,119,6,0.25);
-    }
-
-    .prep-value {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.3rem;
-      font-weight: 800;
-      color: var(--amber);
-      letter-spacing: -0.02em;
-    }
-
-    .prep-sub {
-      font-size: 0.72rem;
-      color: #92400E;
-      font-weight: 500;
-      margin-top: 1px;
-    }
-
-    /* ── Right Column: Summary Card ── */
-    .summary-card {
-      background: var(--white);
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      overflow: hidden;
-      position: sticky;
-      top: 80px;
-      animation: fadeUp 0.5s ease 0.3s both;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-    }
-
-    .summary-head {
-      background: linear-gradient(135deg, #C8102E 0%, #8B0C20 100%);
-      padding: 18px 20px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .summary-head::after {
-      content: '';
-      position: absolute;
-      top: -20px;
-      right: -20px;
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.07);
-    }
-
-    .summary-head-label {
-      font-family: 'Syne', sans-serif;
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.7);
-    }
-
-    .summary-total-display {
-      margin-top: 6px;
-      display: flex;
-      align-items: baseline;
-      gap: 2px;
-    }
-
-    .summary-currency {
-      font-size: 1rem;
-      font-weight: 700;
-      color: rgba(255,255,255,0.8);
-      margin-top: 2px;
-    }
-
-    .summary-amount {
-      font-family: 'Syne', sans-serif;
-      font-size: 2.2rem;
-      font-weight: 800;
-      color: white;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-
-    .summary-body {
-      padding: 16px 20px;
-    }
-
-    .summary-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.85rem;
-    }
-
-    .summary-row:last-child { border-bottom: none; }
-
-    .summary-row .s-label { color: var(--muted); }
-    .summary-row .s-value { font-weight: 600; color: var(--text); }
-
-    .summary-row.total-row {
-      margin-top: 4px;
-      padding-top: 14px;
-      border-top: 2px solid var(--border);
-    }
-
-    .summary-row.total-row .s-label {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: 0.9rem;
-      color: var(--text);
-    }
-
-    .summary-row.total-row .s-value {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.1rem;
-      font-weight: 800;
-      color: var(--red);
-    }
-
-    .summary-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 4px 0;
-    }
-
-    /* Place Order button inside summary card */
-    .place-order-card-btn {
-      width: 100%;
-      background: linear-gradient(135deg, #C8102E 0%, #8B0C20 100%);
-      color: white;
-      border: none;
-      border-radius: 14px;
-      padding: 14px;
-      font-family: 'Syne', sans-serif;
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-      margin-top: 14px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      box-shadow: 0 6px 20px var(--red-glow);
-    }
-
-    .place-order-card-btn:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(200,16,46,0.35);
-    }
-
-    .place-order-card-btn:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    .place-order-card-btn:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-
-    .secure-badge {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      margin-top: 10px;
-      font-size: 0.7rem;
-      color: var(--muted);
-    }
-
-    /* ── Bottom Bar ── */
-    .bottom-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(255,255,255,0.95);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-top: 1px solid var(--border);
-      padding: 12px 20px;
-      z-index: 100;
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.07);
-    }
-
-    .bottom-bar-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .bar-total-group {
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .bar-total-label {
-      font-size: 0.68rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-weight: 700;
-      color: var(--muted);
-    }
-
-    .bar-total-amount {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.3rem;
-      font-weight: 800;
-      color: var(--text);
-      letter-spacing: -0.02em;
-      line-height: 1.2;
-    }
-
-    .place-order-btn {
-      flex: 1;
-      background: linear-gradient(135deg, #C8102E 0%, #8B0C20 100%);
-      color: white;
-      border: none;
-      border-radius: 14px;
-      padding: 14px 24px;
-      font-family: 'Syne', sans-serif;
-      font-size: 0.95rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      box-shadow: 0 6px 20px var(--red-glow);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .place-order-btn:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(200,16,46,0.4);
-    }
-
-    .place-order-btn:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    .place-order-btn:disabled {
-      opacity: 0.75;
-      cursor: not-allowed;
-    }
-
-    /* ── Confirmation Modal ── */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-      opacity: 0;
-      pointer-events: none;
-      transition: all 0.3s ease;
-      padding: 20px;
-    }
-
-    .modal-overlay.active {
-      opacity: 1;
-      pointer-events: all;
-    }
-
-    .modal-card {
-      background: var(--white);
-      border-radius: 24px;
-      padding: 36px 32px;
-      max-width: 420px;
-      width: 100%;
-      text-align: center;
-      transform: translateY(20px) scale(0.97);
-      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    }
-
-    .modal-overlay.active .modal-card {
-      transform: translateY(0) scale(1);
-    }
-
-    .success-ring {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 20px;
-      font-size: 30px;
-      box-shadow: 0 8px 24px rgba(22,163,74,0.3);
-      animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
-    }
-
-    @keyframes popIn {
-      from { transform: scale(0); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
-    }
-
-    .modal-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--text);
-      margin-bottom: 6px;
-      letter-spacing: -0.02em;
-    }
-
-    .modal-sub {
-      color: var(--muted);
-      font-size: 0.85rem;
-      margin-bottom: 24px;
-    }
-
-    .modal-details {
-      background: var(--bg);
-      border-radius: 14px;
-      overflow: hidden;
-      margin-bottom: 24px;
-      text-align: left;
-      border: 1px solid var(--border);
-    }
-
-    .modal-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 16px;
-      font-size: 0.85rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .modal-row:last-child { border-bottom: none; }
-
-    .modal-row .ml { color: var(--muted); }
-    .modal-row .mv { font-weight: 600; color: var(--text); }
-    .modal-row.total-row .ml, .modal-row.total-row .mv {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      color: var(--red);
-    }
-
-    .modal-btn {
-      width: 100%;
-      background: linear-gradient(135deg, #C8102E 0%, #8B0C20 100%);
-      color: white;
-      border: none;
-      border-radius: 14px;
-      padding: 14px;
-      font-family: 'Syne', sans-serif;
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      box-shadow: 0 6px 20px var(--red-glow);
-    }
-
-    .modal-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(200,16,46,0.35); }
-
-    /* ── Empty State ── */
-    .empty-state {
-      text-align: center;
-      padding: 80px 20px;
-      color: var(--muted);
-      grid-column: 1 / -1;
-    }
-
-    .empty-icon {
-      font-size: 3rem;
-      margin-bottom: 16px;
-    }
-
-    .empty-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 8px;
-    }
-
-    /* ── Spinner ── */
-    .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255,255,255,0.35);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      display: inline-block;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Mock Payment Modal ── */
-    #pay-modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      backdrop-filter: blur(6px);
-      z-index: 300;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    #pay-modal-overlay.active { display: flex; }
-
-    .pay-modal {
-      background: var(--white);
-      border-radius: 24px;
-      padding: 32px 28px 28px;
-      max-width: 360px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.2);
-      animation: fadeUp 0.3s ease;
-    }
-
-    .pay-modal-icon { font-size: 2.6rem; margin-bottom: 12px; }
-
-    .pay-modal-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.25rem;
-      font-weight: 800;
-      color: var(--text);
-      margin-bottom: 6px;
-      letter-spacing: -0.02em;
-    }
-
-    .pay-modal-amount {
-      font-family: 'Syne', sans-serif;
-      font-size: 2rem;
-      font-weight: 800;
-      color: var(--red);
-      letter-spacing: -0.03em;
-      margin-bottom: 4px;
-    }
-
-    .pay-modal-sub {
-      font-size: 0.78rem;
-      color: var(--muted);
-      margin-bottom: 20px;
-    }
-
-    .pay-modal-note {
-      font-size: 0.72rem;
-      color: var(--muted);
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 14px;
-      margin-bottom: 22px;
-      line-height: 1.5;
-    }
-
-    .pay-btns {
-      display: flex;
-      gap: 10px;
-    }
-
-    .pay-btn {
-      flex: 1;
-      padding: 13px 0;
-      border: none;
-      border-radius: 14px;
-      font-family: 'Syne', sans-serif;
-      font-size: 0.88rem;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.15s;
-    }
-
-    .pay-btn:active:not(:disabled) { transform: scale(0.97); }
-
-    .pay-btn.success {
-      background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
-      color: white;
-      box-shadow: 0 4px 14px rgba(22,163,74,0.3);
-    }
-
-    .pay-btn.fail {
-      background: var(--bg);
-      color: var(--red);
-      border: 1.5px solid var(--red);
-    }
-
-    .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .pay-result {
-      margin-top: 16px;
-      padding: 12px 16px;
-      border-radius: 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      display: none;
-      line-height: 1.4;
-    }
-
-    .pay-result.ok  { background: #EDFAF3; color: #16A34A; display: block; border: 1px solid #B7EDD0; }
-    .pay-result.err { background: #FFF0F0; color: var(--red); display: block; border: 1px solid #FECDD3; }
-    .pay-result.loading { background: var(--bg); color: var(--muted); display: block; border: 1px solid var(--border); }
-
-    /* ── Responsive ── */
-    @media (max-width: 860px) {
-      .checkout-grid { grid-template-columns: 1fr; }
-      .summary-card { position: static; }
-      .place-order-card-btn { display: none; }
-    }
-
-    @media (min-width: 860px) {
-      .bottom-bar { display: none; }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- ── Header ── -->
-  <div class="page-header">
-    <div class="page-header-inner">
-      <button class="back-btn" onclick="history.back()">←</button>
-      <div class="header-title-group">
-        <span class="header-eyebrow">NUV Nest</span>
-        <h1 class="header-title">Checkout</h1>
-      </div>
-      <div class="header-step">
-        <div class="step-dot"></div>
-        <div class="step-dot"></div>
-        <div class="step-dot active"></div>
-      </div>
+{% extends "base.html" %}
+{% block title %}Order Checkout{% endblock %}
+
+{% block extra_css %}
+{# ── Razorpay SDK (must load before checkout.js) ── #}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+<style>
+  /* ── Design tokens ── */
+  :root {
+    --co-primary:    #b32020;
+    --co-accent:     #f59e0b;
+    --co-bg:         #f0f4f8;
+    --co-card:       #ffffff;
+    --co-border:     #d1dbe8;
+    --co-text:       #2d3748;
+    --co-text-sub:   #e24f59;
+    --co-muted:      #8a9bb0;
+    --co-radius:     10px;
+    --co-shadow:     0 2px 12px rgba(0,0,0,0.07);
+  }
+
+  /* ── Page wrapper ── */
+  .checkout-page {
+    background: var(--co-bg);
+    min-height: calc(100vh - 60px);
+    padding-bottom: 3rem;
+  }
+
+  /* ── Page header ── */
+  .co-page-header {
+    background: var(--co-primary);
+    padding: 1.6rem 2rem 1.2rem;
+    color: #fff;
+    margin-bottom: 1.8rem;
+  }
+  .co-page-header h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .co-page-header h1 svg { opacity: 0.85; }
+  .breadcrumb {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.65);
+  }
+  .breadcrumb a   { color: rgba(255,255,255,0.65); text-decoration: none; }
+  .breadcrumb a:hover { color: #fff; }
+  .breadcrumb span { margin: 0 6px; opacity: 0.5; }
+
+  /* ── Layout ── */
+  .co-container {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  /* ── Card ── */
+  .co-card {
+    background: var(--co-card);
+    border: 1px solid var(--co-border);
+    border-radius: var(--co-radius);
+    overflow: hidden;
+    margin-bottom: 1.2rem;
+    box-shadow: var(--co-shadow);
+  }
+  .co-card-header {
+    padding: 0.85rem 1.4rem;
+    background: #f7f9fc;
+    border-bottom: 1px solid var(--co-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .co-card-header h2 {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--co-primary);
+    margin: 0;
+  }
+  .co-dot {
+    width: 8px; height: 8px;
+    background: var(--co-accent);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .co-card-body { padding: 1.3rem 1.4rem; }
+
+  /* ── Info grid ── */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.5rem;
+  }
+  .info-item label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--co-muted);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .info-item p {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--co-text);
+    margin: 0;
+  }
+
+  /* ── Slot badge ── */
+  .slot-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #e8f4fd;
+    border: 1px solid #b3d7f5;
+    color: #1565c0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  /* ── Food table ── */
+  .food-table { width: 100%; border-collapse: collapse; }
+  .food-table thead tr { background: #f7f9fc; }
+  .food-table th {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--co-muted);
+    padding: 0.65rem 1rem;
+    text-align: left;
+  }
+  .food-table th:nth-child(2),
+  .food-table th:nth-child(3),
+  .food-table th:nth-child(4) { text-align: center; }
+  .food-table th:last-child    { text-align: right; }
+  .food-table td {
+    padding: 0.75rem 1rem;
+    font-size: 0.87rem;
+    border-bottom: 1px solid #eef1f6;
+    color: var(--co-text);
+    vertical-align: middle;
+  }
+  .food-table td:nth-child(2),
+  .food-table td:nth-child(3) { text-align: center; }
+  .food-table td:last-child    { text-align: right; font-weight: 600; color: var(--co-text-sub); }
+  .food-table tbody tr:last-child td { border-bottom: none; }
+  .food-table tbody tr:hover { background: #fafbfd; }
+  .food-name { font-weight: 600; color: var(--co-text); }
+
+  .badge-qty {
+    display: inline-block;
+    background: var(--co-primary);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 20px;
+  }
+
+  /* ── Table footer total row ── */
+  .food-table tfoot td {
+    padding: 0.8rem 1rem;
+    border-top: 2px solid var(--co-border);
+    font-weight: 700;
+    font-size: 0.9rem;
+    background: #f7f9fc;
+    color: var(--co-primary);
+  }
+  .food-table tfoot td:last-child { text-align: right; color: var(--co-primary); }
+
+  /* ── Empty state ── */
+  .empty-cart {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--co-muted);
+    font-size: 0.88rem;
+  }
+  .empty-cart svg { margin-bottom: 0.6rem; opacity: 0.4; }
+
+  /* ── Summary panel ── */
+  .summary-section { display: flex; flex-direction: column; gap: 1rem; }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.87rem;
+    padding: 4px 0;
+  }
+  .summary-label { color: var(--co-muted); font-weight: 500; }
+  .summary-value { font-weight: 600; color: var(--co-text); }
+
+  .summary-row.total {
+    font-size: 1.05rem;
+    font-weight: 700;
+    border-top: 2px solid var(--co-primary);
+    margin-top: 10px;
+    padding-top: 12px;
+  }
+  .summary-row.total .summary-label { color: var(--co-primary); }
+  .summary-row.total .summary-value { color: var(--co-primary); font-size: 1.15rem; }
+
+  .co-divider { border: none; border-top: 1px solid var(--co-border); margin: 1.1rem 0; }
+
+  /* ── Pay button ── */
+  #pay-btn {
+    width: 100%;
+    padding: 0.9rem;
+    background: var(--co-primary);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    letter-spacing: 0.3px;
+    font-family: inherit;
+    box-shadow: 0 4px 14px rgba(179,32,32,0.3);
+  }
+  #pay-btn:hover  { background: #971a1a; box-shadow: 0 6px 18px rgba(179,32,32,0.4); }
+  #pay-btn:active { transform: scale(0.98); }
+  #pay-btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+
+  .secure-note {
+    text-align: center;
+    font-size: 0.73rem;
+    color: var(--co-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 10px;
+  }
+
+  /* ── Spinner ── */
+  .btn-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: co-spin 0.7s linear infinite;
+    display: none;
+    flex-shrink: 0;
+  }
+  @keyframes co-spin { to { transform: rotate(360deg); } }
+
+  /* ── Toast ── */
+  #co-toast {
+    position: fixed;
+    bottom: 2rem; right: 2rem;
+    padding: 0.75rem 1.2rem;
+    border-radius: 8px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #fff;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 9999;
+    pointer-events: none;
+    max-width: 320px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  #co-toast.show  { opacity: 1; transform: translateY(0); }
+  #co-toast.error { background: #c0392b; }
+  #co-toast.info  { background: #2563eb; }
+
+  /* ── Note card ── */
+  .note-card p.note-label {
+    font-size: 0.7rem; color: var(--co-muted);
+    margin-bottom: 6px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .note-card p.note-body {
+    font-size: 0.83rem; line-height: 1.6; color: #4a5568;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 720px) {
+    .co-container { grid-template-columns: 1fr; }
+    .info-grid    { grid-template-columns: 1fr; }
+    .co-page-header { padding: 1.2rem 1.2rem 0.9rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="checkout-page">
+
+  <!-- ── Page Header ────────────────────────────────────────── -->
+  <div class="co-page-header">
+    <h1>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2"/>
+        <line x1="1" y1="10" x2="23" y2="10"/>
+      </svg>
+      Order Checkout
+    </h1>
+    <div class="breadcrumb">
+      <a href="{{ url_for('dashboard') }}">Home</a>
+      <span>›</span>
+      <a href="{{ url_for('canteen') }}">Menu</a>
+      <span>›</span>
+      Checkout
     </div>
   </div>
 
-  <!-- ── Main ── -->
-  <div class="checkout-wrapper">
-    <div class="checkout-grid" id="checkout-main">
-      <!-- Filled by JS -->
-    </div>
-  </div>
+  <div class="co-container">
 
-  <!-- ── Mobile Bottom Bar ── -->
-  <div class="bottom-bar" id="bottom-bar" style="display: none;">
-    <div class="bottom-bar-inner">
-      <div class="bar-total-group">
-        <span class="bar-total-label">Total</span>
-        <span class="bar-total-amount" id="bar-total">₹0</span>
+    <!-- ── Left: Order Details ─────────────────────────────── -->
+    <div>
+
+      <!-- Order Information -->
+      <div class="co-card">
+        <div class="co-card-header">
+          <div class="co-dot"></div>
+          <h2>Order Information</h2>
+        </div>
+        <div class="co-card-body">
+          <div class="info-grid">
+            <div class="info-item">
+              <label>Customer Name</label>
+              <p>{{ order.user_name }}</p>
+            </div>
+            <div class="info-item">
+              <label>Canteen</label>
+              <p>{{ order.canteen_name }}</p>
+            </div>
+            <div class="info-item">
+              <label>Order Date</label>
+              <p>{{ order.order_date }}</p>
+            </div>
+            <div class="info-item">
+              <label>Order Type</label>
+              <p>
+                {% if order.order_type == 'dinein' %}
+                <span class="slot-badge" style="background:#e8f5e9;border-color:#a5d6a7;color:#2e7d32;">
+                  🍽️ Dine In
+                </span>
+                {% else %}
+                <span class="slot-badge" style="background:#fff3e0;border-color:#ffcc80;color:#e65100;">
+                  🛍️ Takeaway
+                </span>
+                {% endif %}
+              </p>
+            </div>
+            {% if order.order_type != 'dinein' %}
+            <div class="info-item">
+              <label>Pickup Time Slot</label>
+              <p>
+                {% if order.time_slot %}
+                <span class="slot-badge">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  {{ order.time_slot }}
+                </span>
+                {% else %}
+                <span style="color:var(--co-muted); font-size:0.85rem;">Not selected</span>
+                {% endif %}
+              </p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
       </div>
-      <button class="place-order-btn" id="place-order-btn" onclick="placeOrder()">
-        Proceed to Pay →
-      </button>
-    </div>
-  </div>
 
-  <!-- ── Mock Payment Modal ── -->
-  <div id="pay-modal-overlay">
-    <div class="pay-modal">
-      <div class="pay-modal-icon">💳</div>
-      <div class="pay-modal-title">Mock Payment</div>
-      <div class="pay-modal-amount" id="pay-modal-amount">₹0</div>
-      <div class="pay-modal-sub">Simulated payment gateway</div>
-      <div class="pay-modal-note">🧪 This is a test environment. Choose an outcome below to simulate the payment result.</div>
-      <div class="pay-btns">
-        <button class="pay-btn success" id="btn-pay-success" onclick="simulatePayment('success')">✓ Pay Success</button>
-        <button class="pay-btn fail"    id="btn-pay-fail"    onclick="simulatePayment('failed')">✕ Pay Fail</button>
+      <!-- Ordered Items -->
+      <div class="co-card">
+        <div class="co-card-header">
+          <div class="co-dot"></div>
+          <h2>Ordered Items</h2>
+        </div>
+
+        {% if order.food_items %}
+        <div>
+          <table class="food-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in order.food_items %}
+              <tr>
+                <td><span class="food-name">{{ item.name }}</span></td>
+                <td><span class="badge-qty">{{ item.qty }}</span></td>
+                <td>₹{{ item.price }}</td>
+                <td>₹{{ item.price * item.qty }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">Total</td>
+                <td>₹{{ total }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {% else %}
+        <div class="co-card-body">
+          <div class="empty-cart">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.5">
+              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <path d="M16 10a4 4 0 0 1-8 0"/>
+            </svg>
+            <p>No items in your cart.</p>
+            <a href="{{ url_for('canteen') }}" style="color:var(--co-primary); font-weight:600;">
+              ← Go back to menu
+            </a>
+          </div>
+        </div>
+        {% endif %}
       </div>
-      <div class="pay-result" id="pay-result"></div>
-    </div>
-  </div>
 
-  <!-- ── Confirmation Modal ── -->
-  <div class="modal-overlay" id="success-modal">
-    <div class="modal-card">
-      <div class="success-ring">✓</div>
-      <div class="modal-title">Order Confirmed!</div>
-      <div class="modal-sub">Your order has been placed successfully</div>
-      <div class="modal-details">
-        <div class="modal-row">
-          <span class="ml">Order ID</span>
-          <span class="mv" id="modal-order-id">#—</span>
+    </div><!-- /.left -->
+
+    <!-- ── Right: Payment Summary ──────────────────────────── -->
+    <div class="summary-section">
+      <div class="co-card">
+        <div class="co-card-header">
+          <div class="co-dot"></div>
+          <h2>Payment Summary</h2>
         </div>
-        <div class="modal-row">
-          <span class="ml">Canteen</span>
-          <span class="mv" id="modal-canteen">—</span>
-        </div>
-        <div class="modal-row">
-          <span class="ml">Pickup Time</span>
-          <span class="mv" id="modal-slot">—</span>
-        </div>
-        <div class="modal-row total-row">
-          <span class="ml">Total Paid</span>
-          <span class="mv" id="modal-total">₹—</span>
+        <div class="co-card-body">
+          <div class="summary-row">
+            <span class="summary-label">Subtotal</span>
+            <span class="summary-value">₹{{ total }}</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Convenience Fee</span>
+            <span class="summary-value">₹0</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">GST</span>
+            <span class="summary-value" style="color:var(--co-muted); font-size:0.82rem;">Included</span>
+          </div>
+          <div class="summary-row total">
+            <span class="summary-label">Total Payable</span>
+            <span class="summary-value">₹{{ total }}</span>
+          </div>
+
+          <hr class="co-divider"/>
+
+          <button id="pay-btn"
+                  onclick="initiatePayment()"
+                  {% if not order.food_items %}disabled{% endif %}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="4" width="22" height="16" rx="2"/>
+              <line x1="1" y1="10" x2="23" y2="10"/>
+            </svg>
+            <span id="btn-text">Pay ₹{{ total }} via Razorpay</span>
+            <div class="btn-spinner" id="btn-spinner"></div>
+          </button>
+
+          <p class="secure-note">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            Secured by Razorpay
+          </p>
         </div>
       </div>
-      <button class="modal-btn" onclick="finishCheckout()">Back to Dashboard</button>
-    </div>
-  </div>
 
-  <script>
-    const CANTEEN_CONFIG = {
-      '1': { key: 'main_cafe',  name: 'Main Canteen',    emoji: '🍽️', prep: 10 },
-      '2': { key: 'tea_post',   name: 'Tea Post',         emoji: '🍵', prep: 12 },
-      '3': { key: 'bistro',     name: 'Tropical Bistro',  emoji: '🥗', prep: null }
-    };
-
-    const ITEM_EMOJIS = {
-      default: '🍽️',
-      tea: '🍵', 'black tea': '🍵', 'green tea': '🍵', 'chai': '☕',
-      coffee: '☕', 'cold coffee': '🧋',
-      samosa: '🥟', vada: '🥙', sandwich: '🥪',
-      rice: '🍚', dal: '🫕', paneer: '🧀',
-      juice: '🥤', lassi: '🥛', shake: '🧋',
-    };
-
-    function getItemEmoji(name) {
-      const lower = (name || '').toLowerCase();
-      for (const [key, emoji] of Object.entries(ITEM_EMOJIS)) {
-        if (lower.includes(key)) return emoji;
-      }
-      return ITEM_EMOJIS.default;
-    }
-
-    function getCheckoutData() {
-      try { return JSON.parse(localStorage.getItem('nuv_checkout')) || null; }
-      catch { return null; }
-    }
-
-    function clearCheckoutData() { localStorage.removeItem('nuv_checkout'); }
-
-    function escapeHtml(t) {
-      const d = document.createElement('div');
-      d.textContent = t;
-      return d.innerHTML;
-    }
-
-    function renderCheckout() {
-      const data = getCheckoutData();
-      const container = document.getElementById('checkout-main');
-      const bottomBar = document.getElementById('bottom-bar');
-
-      if (!data || !data.items || data.items.length === 0) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">🛒</div>
-            <div class="empty-title">Your cart is empty</div>
-            <p>Add items from the canteen menu first</p>
-          </div>`;
-        bottomBar.style.display = 'none';
-        return;
-      }
-
-      const canteen = CANTEEN_CONFIG[data.canteenId] || { name: 'Canteen', emoji: '🍽️', prep: null };
-      const total = data.items.reduce((s, i) => s + i.price * i.qty, 0);
-
-      const itemsHtml = data.items.map(item => `
-        <div class="order-item">
-          <div class="item-thumb">${getItemEmoji(item.name)}</div>
-          <div class="item-details">
-            <div class="item-name">${escapeHtml(item.name)}</div>
-            <div class="item-qty-price">₹${item.price} × ${item.qty}</div>
-          </div>
-          <div class="item-price-badge">₹${item.price * item.qty}</div>
-        </div>`).join('');
-
-      const prepContent = canteen.prep
-        ? `<div class="prep-value">${canteen.prep} min</div><div class="prep-sub">Estimated prep time</div>`
-        : `<div class="prep-value">Varies</div><div class="prep-sub">Estimated prep time</div>`;
-
-      container.innerHTML = `
-        <div class="left-col">
-
-          <div class="card">
-            <div class="card-header">
-              <div class="card-icon">📍</div>
-              <span class="card-label">Canteen</span>
-            </div>
-            <div class="card-body">
-              <div class="canteen-display">
-                <div class="canteen-avatar">${canteen.emoji}</div>
-                <div>
-                  <div class="canteen-name">${escapeHtml(canteen.name)}</div>
-                  <div class="canteen-sub">NUV Campus</div>
-                </div>
-                <div class="canteen-pill">OPEN</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div class="card-icon">🛍️</div>
-              <span class="card-label">Order Items</span>
-            </div>
-            <div class="card-body">
-              ${itemsHtml}
-              <div class="subtotal-row">
-                <span class="subtotal-label">Subtotal</span>
-                <span class="subtotal-value">₹${total}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div class="card-icon">🕐</div>
-              <span class="card-label">Pickup Time</span>
-            </div>
-            <div class="card-body">
-              <div class="time-display">
-                <div class="time-icon-wrap">📅</div>
-                <div class="time-info">
-                  <div class="time-value">${data.timeSlot}</div>
-                  <div class="time-sub">Confirmed pickup slot</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div class="card-icon">⏱️</div>
-              <span class="card-label">Preparation</span>
-            </div>
-            <div class="card-body">
-              <div class="prep-display">
-                <div class="prep-icon-wrap">⏱️</div>
-                <div>${prepContent}</div>
-              </div>
-            </div>
-          </div>
+      <!-- Note -->
+      <div class="co-card note-card">
+        <div class="co-card-body">
+          <p class="note-label">📋 Note</p>
+          <p class="note-body">
+            {% if order.order_type == 'dinein' %}
+            Your order will be prepared fresh for dine-in. Please show this
+            page or your receipt at the counter when you arrive.
+            {% else %}
+            Please collect your order at the canteen counter during your
+            selected time slot. Show this page or your receipt at the counter.
+            {% endif %}
+          </p>
         </div>
+      </div>
 
-        <div class="right-col">
-          <div class="summary-card">
-            <div class="summary-head">
-              <div class="summary-head-label">Order Total</div>
-              <div class="summary-total-display">
-                <span class="summary-currency">₹</span>
-                <span class="summary-amount">${total}</span>
-              </div>
-            </div>
-            <div class="summary-body">
-              <div class="summary-row">
-                <span class="s-label">Items (${data.items.length})</span>
-                <span class="s-value">₹${total}</span>
-              </div>
-              <div class="summary-row">
-                <span class="s-label">Platform fee</span>
-                <span class="s-value" style="color: #16a34a; font-weight:700;">Free</span>
-              </div>
-              <div class="summary-row total-row">
-                <span class="s-label">Total</span>
-                <span class="s-value">₹${total}</span>
-              </div>
-              <button class="place-order-card-btn" id="place-order-card-btn" onclick="placeOrder()">
-                Proceed to Pay →
-              </button>
-              <div class="secure-badge">🔒 Secure &amp; Encrypted Order</div>
-            </div>
-          </div>
-        </div>`;
+    </div><!-- /.right -->
 
-      document.getElementById('bar-total').textContent = '₹' + total;
-      bottomBar.style.display = 'block';
-    }
+  </div><!-- /.co-container -->
+</div><!-- /.checkout-page -->
 
-    // ── Mock Payment Flow ─────────────────────────────────────────────────────
+<!-- Toast notification -->
+<div id="co-toast"></div>
+{% endblock %}
 
-    let _mockOrderId = null;
+{% block scripts %}
+{#
+  Inject server-side values as JS globals so checkout.js can read them
+  without needing any extra fetch calls.
+#}
+<script>
+  const RAZORPAY_KEY = "{{ razorpay_key_id }}";
+  const ORDER_TOTAL  = {{ total }};
+  const USER_NAME    = "{{ order.user_name | e }}";
+  const CART_ITEMS   = {{ order.food_items | tojson | safe }};
+  const TIME_SLOT    = "{{ order.time_slot | e }}";
+  const CANTEEN_ID   = "{{ canteen | e }}";
+</script>
 
-    async function placeOrder() {
-      const btnBar  = document.getElementById('place-order-btn');
-      const btnCard = document.getElementById('place-order-card-btn');
-      const data = getCheckoutData();
-      if (!data || !data.items || data.items.length === 0) { alert('Cart is empty!'); return; }
-
-      [btnBar, btnCard].forEach(b => { if (b) { b.disabled = true; b.innerHTML = '<span class="spinner"></span> Processing…'; } });
-
-      const total = data.items.reduce((s, i) => s + i.price * i.qty, 0);
-
-      try {
-        const res = await fetch('/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items:      data.items.map(i => ({ name: i.name, price: i.price, qty: i.qty })),
-            total:      total,
-            time_slot:  data.timeSlot,
-            canteen_id: data.canteenId
-          })
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Failed to create order');
-
-        _mockOrderId = result.order_id;
-
-        // Reset and show payment modal
-        document.getElementById('pay-modal-amount').textContent = '₹' + total;
-        document.getElementById('pay-result').className = 'pay-result';
-        document.getElementById('pay-result').textContent = '';
-        document.getElementById('pay-result').style.display = 'none';
-        document.getElementById('btn-pay-success').disabled = false;
-        document.getElementById('btn-pay-fail').disabled = false;
-        document.getElementById('pay-modal-overlay').classList.add('active');
-
-      } catch (err) {
-        alert('Could not initiate payment: ' + err.message);
-      } finally {
-        [btnBar, btnCard].forEach(b => { if (b) { b.disabled = false; b.innerHTML = 'Proceed to Pay →'; } });
-      }
-    }
-
-    async function simulatePayment(status) {
-      const btnOk   = document.getElementById('btn-pay-success');
-      const btnFail = document.getElementById('btn-pay-fail');
-      const resultEl = document.getElementById('pay-result');
-
-      [btnOk, btnFail].forEach(b => b.disabled = true);
-      resultEl.className = 'pay-result loading';
-      resultEl.textContent = 'Processing payment…';
-      resultEl.style.display = 'block';
-
-      try {
-        const res = await fetch('/verify-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ order_id: _mockOrderId, status })
-        });
-        const result = await res.json();
-
-        if (status === 'success' && result.success) {
-          document.getElementById('pay-modal-overlay').classList.remove('active');
-          const data = getCheckoutData();
-          const canteen = CANTEEN_CONFIG[data.canteenId] || { name: 'Canteen', emoji: '🍽️' };
-          showConfirmation(result.db_order_id, canteen, data);
-        } else {
-          resultEl.className = 'pay-result err';
-          resultEl.textContent = '✕ Payment failed. Please try again.';
-          [btnOk, btnFail].forEach(b => b.disabled = false);
-        }
-      } catch (err) {
-        resultEl.className = 'pay-result err';
-        resultEl.textContent = '✕ Network error. Please try again.';
-        [btnOk, btnFail].forEach(b => b.disabled = false);
-      }
-    }
-
-    // ── Confirmation ──────────────────────────────────────────────────────────
-
-    function showConfirmation(orderId, canteen, data) {
-      const total = data.items.reduce((s, i) => s + i.price * i.qty, 0);
-      document.getElementById('modal-order-id').textContent = '#' + orderId;
-      document.getElementById('modal-canteen').textContent = canteen.name;
-      document.getElementById('modal-slot').textContent = data.timeSlot;
-      document.getElementById('modal-total').textContent = '₹' + total;
-      document.getElementById('success-modal').classList.add('active');
-      clearCheckoutData();
-    }
-
-    function finishCheckout() { window.location.href = '/dashboard'; }
-
-    document.addEventListener('DOMContentLoaded', renderCheckout);
-  </script>
-</body>
-</html>
+{# External checkout logic — keep JS out of the template #}
+<script src="{{ url_for('static', filename='js/checkout.js') }}"></script>
+{% endblock %}

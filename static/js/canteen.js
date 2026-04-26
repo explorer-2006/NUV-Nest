@@ -1,6 +1,6 @@
 /*Canteen Menu + Cart */
 
-const CANTEEN_CONFIG = {
+const CANTEEN_CONFIG = {                                //Stores information about the 3 canteens available at the university.
   1: { key: 'main_cafe', name: 'Main Canteen'     },
   2: { key: 'tea_post',  name: 'Tea Post'          },
   3: { key: 'bistro',    name: 'Tropical Bistro'   },
@@ -11,8 +11,8 @@ function getCanteenConfig() {                                                  /
   return CANTEEN_CONFIG[param] || null;
 }                                                                                
 
-let DYNAMIC_MENU = {};           //processed menu from backend
-let cart = [];                   //stores selected items 
+let DYNAMIC_MENU = {};           //organised menu data from backend
+let cart = [];                   //list of items the user selected 
 let cartItemsEl, cartCountEl, cartTotalEl;    
 
 function addToCart(name, price) {                                    //Check if item already exists in cart, if yes increment qty, else add new item
@@ -35,11 +35,11 @@ function updateCart() {
   const total = cart.reduce((s, i) => s + i.price * i.qty, 0);    //Calculate total price
   cartTotalEl.textContent = '₹' + total;
   if (cart.length === 0) {
-    cartItemsEl.innerHTML = '<p style="color:var(--muted);text-align:center;padding:40px 0;">Your cart is empty</p>';
+    cartItemsEl.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px 0;">Your cart is empty. Please add some items!</p>';
     return;
   }
   cartItemsEl.innerHTML = cart.map(item => `
-    <div class="cart-item">               //each item in cart with name, price, qty and buttons to update qty
+    <div class="cart-item">               <!--each item in cart with name, price, qty and buttons to update qty-->
       <div class="cart-item-info">        //Item name and price
         <div class="cart-item-name">${item.name}</div>              //item name 
         <div class="cart-item-price">₹${item.price} × ${item.qty}</div>    //item price and quantity
@@ -53,24 +53,36 @@ function updateCart() {
   `).join('');
 }
 
-function checkout() {
-  if (cart.length === 0) {                             //Prevent checkout if cart is empty
+async function checkout() {
+  if (cart.length === 0) {
     alert('Please add items to your cart first!');
     return;
   }
-  const selectedSlot = document.querySelector('.slot-option.selected');                     
-  if (!selectedSlot) {                                  //Prevent checkout if no pickup time slot is selected
+
+  const selectedSlot = document.querySelector('.slot-option.selected');
+  if (!selectedSlot) {
     alert('Please select a pickup time slot!');
     return;
   }
-  const canteenId = new URLSearchParams(window.location.search).get('canteen') || '1';        ///menu?canteen=2
+
+  const canteenId = new URLSearchParams(window.location.search).get('canteen') || '1';
   const checkoutData = {
     canteenId: canteenId,
-    timeSlot: selectedSlot.textContent.trim(),
-    items: cart.map(i => ({ name: i.name, price: i.price, qty: i.qty }))
+    timeSlot:  selectedSlot.textContent.trim(),
+    items:     cart.map(i => ({ name: i.name, price: i.price, qty: i.qty }))
   };
-  localStorage.setItem('nuv_checkout', JSON.stringify(checkoutData));   //Store checkout data in localStorage to be retrieved on checkout page
-  window.location.href = '/checkout';    //Redirect to checkout page
+
+  // POST cart to Flask session, then redirect to checkout page
+  const res = await fetch('/save-cart', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(checkoutData)
+  });
+  if (res.ok) {
+    window.location.href = '/checkout';
+  } else {
+    alert('Could not save cart. Please try again.');
+  }
 }
 
 function showTab(tabKey) {

@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, flash, render_template, url_for, jsonify
+from flask import Flask, request, redirect, flash, render_template, url_for, jsonify, Response, stream_with_context, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, LoginManager, logout_user, login_user, current_user, login_required
 from flask_wtf import FlaskForm
@@ -7,18 +7,51 @@ from wtforms.validators import DataRequired, Email, Length
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import re
+import razorpay
+from openai import OpenAI
+from dotenv import load_dotenv
 from datetime import datetime, timezone
+
+#load_dotenv()   #loading the api key stored in the env file
+#client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  #setting up the client 
 
 
 app = Flask(__name__, template_folder="templates")   #instance
 app.secret_key = "supersecretkeythatnooneissupposetoknow"    #setting up the secret key for csrf protection
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///UserRecords.db"   
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///UserRecords.db"
+
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)      #setting up loginmanager and telling it which app to manage 
 login_manager.login_view = "login"     #if user not logged in will redirect to login page
 
+def build_system_prompt(user):       #prompt for the system content for openai
+    return f"""
+You are an Kind academic elective advisor for Navrachana University (NUV).
+Your ONLY job is to help students choose electives. Nothing else.
 
+Student profile:
+- Name: {user.username}
+- School: {user.school}
+- Program: {user.branch}
+- Semester: {user.semester}
+
+Available electives:
+SBL: Business Analytics, Entrepreneurship, Digital Marketing, Finance, HR Management
+SET: AI & ML, Cybersecurity, Cloud Computing, IoT, Data Science, Robotics
+SOS: Bioinformatics, Environmental Science, Food Technology, Genetics
+SEDA: Sustainable Design, UX/UI, Urban Planning, Heritage Conservation
+SLSE: Media Studies, Psychology, Development Studies, Education Technology
+
+Rules:
+- First ask about interests and career goals before recommending
+- Recommend 2-3 electives max with clear reasoning
+- Only recommend electives from the student's own school
+- Greet them Nicely and dont be rude also if they try to go off topic do kindly redirect them. 
+- If asked something off-topic reply with:
+  "I'm only here to help you choose the right electives at NUV. What are your interests or career goals?"
+- Never make up electives not in the list above
+"""
 
 # ── School → Branch mapping ──
 SCHOOL_BRANCHES = {
@@ -66,9 +99,23 @@ class User(db.Model, UserMixin):
     semester = db.Column(db.Integer, nullable=False, default=1)
 
     # One user has many Orders
-    orders = db.relationship('Order', backref='user', lazy=True,
-                             cascade='all, delete-orphan')
+    orders = db.relationship('Order', backref='user', lazy=True, #links user to order model and backref adds reverse access on order
+                             cascade='all, delete-orphan')  #if user is deleted, delete all their orders to
 
+
+class Conversation(db.Model):
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title      = db.Column(db.String(200), default="New Chat")
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    messages   = db.relationship('Message', backref='conversation', lazy=True, cascade="all, delete-orphan")
+
+class Message(db.Model):
+    id              = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey('conversation.id'), nullable=False)
+    role            = db.Column(db.String(10), nullable=False)
+    content         = db.Column(db.Text, nullable=False)
+    created_at      = db.Column(db.DateTime, default=datetime.now)
 
 # ── Canteen Models 
 class Order(db.Model):
@@ -80,10 +127,12 @@ class Order(db.Model):
     time_slot     = db.Column(db.String(50), nullable=False)
     canteen_id    = db.Column(db.String(10), nullable=False, default='')
     created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    status        = db.Column(db.String(20), default='success')   # success | failed | pending
+    reason        = db.Column(db.String(255), nullable=True)      # failure reason if any
+    payment_id    = db.Column(db.String(100), nullable=True)      # Razorpay payment_id
 
-    items = db.relationship('OrderItem', backref='order', lazy=True,
-                            cascade='all, delete-orphan')
-
+    items = db.relationship('OrderItem', backref='order', lazy=True, #links order to orderitem model and backref adds reverse access on orderitem
+                            cascade='all, delete-orphan')  ##if user is deleted, delete all their orders too
 
 class OrderItem(db.Model):
     __tablename__ = 'order_items'
@@ -147,7 +196,7 @@ def register():
             school = request.form.get("school")  #get data 
             branch = request.form.get("branch")
 
-            if not school or not branch:
+            if not school or not branch:       
                 flash("Please select your school and program.")
                 return render_auth(active_form="register")
 
@@ -155,9 +204,9 @@ def register():
                 flash("Invalid school or program selected.")
                 return render_auth(active_form="register")
 
-            existing_user = User.query.filter_by(email=form.email.data).first() 
+            existing_user = User.query.filter_by(email=form.email.data).first() #checks if the email already exists
             if existing_user:
-                flash("An account with this email already exists.")
+                flash("An account with this email already exists.")  #will show a message if user already exists
                 return render_auth(active_form="register")
 
             
@@ -173,7 +222,7 @@ def register():
             )
             db.session.add(new_user)                #store data in the database
             db.session.commit()
-            flash("Account created! Please log in.")
+            flash("Account created! Please log in.")  #redirects to login page after registration
             return redirect(url_for("login"))
         else:
             return render_auth(active_form="register")
@@ -218,6 +267,103 @@ def logout():
 def chatbot():
     return render_template("chatbot.html", user=current_user)
 
+# 2. Create new conversation
+@app.route("/api/chat/new", methods=["POST"])
+@login_required
+def new_conversation():
+    conv = Conversation(user_id=current_user.id)
+    db.session.add(conv)
+    db.session.commit()
+    return jsonify({"conversation_id": conv.id})
+
+
+# 3. Get all conversations for sidebar
+@app.route("/api/chat/history", methods=["GET"])
+@login_required
+def chat_history():
+    convos = Conversation.query.filter_by(user_id=current_user.id)\
+             .order_by(Conversation.created_at.desc()).all() #gets all the convo history of that user in descending order
+    return jsonify([
+        {"id": c.id, "title": c.title, "created_at": c.created_at.strftime("%d %b")} #returns json response to javascript
+        for c in convos
+    ])
+
+
+# 4. Get messages for a specific conversation
+@app.route("/api/chat/<int:conv_id>/messages", methods=["GET"])
+@login_required
+def get_messages(conv_id):
+    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first_or_404() #search for that convo in database
+    msgs = Message.query.filter_by(conversation_id=conv.id)\
+           .order_by(Message.created_at).all()   #get all the messages of that convo in descending order
+    return jsonify([{"role": m.role, "content": m.content} for m in msgs])  #return that json object to javascript
+
+
+# 5. Send message + stream response
+@app.route("/api/chat/<int:conv_id>/message", methods=["POST"])
+@login_required
+def send_message(conv_id):
+    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first_or_404() #get the convo first
+    data = request.get_json() #get the data send by javascript
+    user_text = data.get("message", "").strip()   #it will strip the user message for any additional spaces
+
+    if not user_text:  #if user did not send any message return error
+        return jsonify({"error": "Empty message"}), 400
+
+    # Save user message  
+    user_msg = Message(conversation_id=conv.id, role="user", content=user_text)
+    db.session.add(user_msg)
+    db.session.commit()
+
+    # Generate title after first message
+    history = Message.query.filter_by(conversation_id=conv.id)\
+              .order_by(Message.created_at).all()#get all the previous messages for that convo
+
+    if len(history) == 1:   #if the history does not have any message and user_text is the first message then send it to openai for title
+        title_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Generate a short 4-5 word title for this chat. Return only the title, nothing else."},
+                {"role": "user", "content": user_text}
+            ]
+        )
+        conv.title = title_response.choices[0].message.content.strip()
+        db.session.commit() #update that title to convo
+
+    # Build history for OpenAI
+    messages = [{"role": "system", "content": build_system_prompt(current_user)}] #list of dictionary for openai to know the context
+    for msg in history:  #loop through the messages in history and append them in the list
+        messages.append({"role": msg.role, "content": msg.content})
+
+    # Store conv.id in plain variable BEFORE generate()
+    conversation_id = conv.id 
+
+    def generate():  #this code is for streaming chunks 
+        full_response = ""
+
+        stream = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            stream=True
+        )
+
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                full_response += delta
+                yield delta
+
+        # Use conversation_id variable NOT conv.id
+        with app.app_context():
+            assistant_msg = Message(
+                conversation_id=conversation_id,  # ← CHANGED
+                role="assistant",
+                content=full_response
+            )
+            db.session.add(assistant_msg)
+            db.session.commit()
+
+    return Response(stream_with_context(generate()), mimetype="text/plain") #streams chunks to javascript as they get generated
 
 # ── Campus page routes ────────────────────────────────────────────────────────
 
@@ -249,10 +395,33 @@ def about():
 def contact():
     return render_template("contact.html", active="contact")
 
+@app.route('/save-cart', methods=['POST'])
+@login_required
+def save_cart():
+    data = request.get_json()
+    session['cart_items'] = data.get('items', [])
+    session['time_slot']  = data.get('timeSlot', '')
+    session['canteen_id'] = data.get('canteenId', '1')
+    session['order_type'] = data.get('orderType', 'takeaway')  # 'takeaway' or 'dinein'
+    return jsonify({'ok': True})
+
 @app.route('/checkout')
+@login_required
 def checkout_page():
-    canteen = request.args.get('canteen', '1')
-    return render_template('checkout.html', canteen=canteen, active='canteen')
+    canteen_id    = session.get('canteen_id', '1')
+    canteen_names = {'1': 'Main Cafe', '2': 'Tea Post', '3': 'Bistro'}
+    order = {
+        'user_name':    current_user.username,
+        'canteen_name': canteen_names.get(canteen_id, 'Canteen'),
+        'food_items':   session.get('cart_items', []),
+        'time_slot':    session.get('time_slot', ''),
+        'order_type':   session.get('order_type', 'takeaway'),
+        'order_date':   datetime.now().strftime('%d %B %Y'),
+    }
+    total = sum(i['price'] * i['qty'] for i in order['food_items'])
+    return render_template('checkout.html', order=order, total=total,
+                           canteen=canteen_id, active='canteen',
+                           razorpay_key_id=RZP_KEY_ID)
 
 @app.route('/past-orders')
 @login_required
@@ -274,7 +443,8 @@ CATEGORY_RULES = {
     'tea_post': [
         ('hot',       ['tea', 'chai', 'coffee', 'bournvita', 'chocolate', 'cappuccino', 'mocha', 'latte', 'irish', 'kavo', 'green tea', 'elaichi tea']),
         ('cold',      ['cold coffee', 'milkshake', 'mojito', 'lemonade', 'soda', 'punch', 'lemon', 'kala khatta', 'chili mango', 'cold bournvita', 'cold coco', 'iced', 'smoothie']),
-        ('bites',     ['khari', 'nankhatai', 'biscuit', 'puff', 'samosa', 'bread', 'bun', 'toast']),
+        ('instant food',     ['bun', 'fingers', 'shots', 'noodles', 'shots', 'bread', 'bun']),
+        ('snacks',   ['poha','upma','thepla','samosa','khichu',''])
     ],
     'bistro': [
         ('snacks',    ['burger', 'pizza', 'fries', 'sandwich', 'panini', 'nachos', 'tikki']),
@@ -284,7 +454,7 @@ CATEGORY_RULES = {
 }
 
 def assign_category(name_lower, canteen):
-    rules = CATEGORY_RULES.get(canteen, [])
+    rules = CATEGORY_RULES.get(canteen, [])    # Get the category rules for the specified canteen
     for category, keywords in rules:
         for kw in keywords:
             if kw in name_lower:
@@ -292,15 +462,15 @@ def assign_category(name_lower, canteen):
     return 'other'
 
 
-def strip_ext(filename):
-    stem = filename
+def strip_ext(filename):                   # Remove all extensions from the filename 
+    current_name = filename
     while True:
-        base, ext = os.path.splitext(stem)
+        base, ext = os.path.splitext(current_name)
         if ext.lower() in VALID_EXTENSIONS:
-            stem = base
+            current_name = base
         else:
             break
-    return stem
+    return current_name
 
 def clean_name(raw):
     raw = re.sub(r'\(.*?\)', '', raw)
@@ -308,24 +478,24 @@ def clean_name(raw):
     raw = re.sub(r'\s+', ' ', raw)
     return raw.title()
 
-def parse_filename(filename):
-    stem  = strip_ext(filename)
-    parts = stem.split('_')
+def parse_filename(filename):    # Given a filename extract the name and price.
+    current_name  = strip_ext(filename)     # Remove all extensions from the filename
+    parts = current_name.split('_')
     price_index = None
     for i in range(len(parts) - 1, -1, -1):
         token = parts[i].strip('.')
-        if token.isdigit():
+        if token.isdigit():       # Check if the token is a valid integer (price)
             price_index = i
             break
-    if price_index is None:
+    if price_index is None:         # If no price token found, return None to skip this file
         return None
     try:
         price = int(parts[price_index].strip('.'))
     except ValueError:
         return None
-    name_parts = parts[:price_index]
+    name_parts = parts[:price_index]       # The name is everything before the price token basically slicing 
     name_raw   = '_'.join(name_parts)
-    name       = clean_name(name_raw)
+    name       = clean_name(name_raw)      # Final cleaning of the name 
     if not name:
         return None
     return name, price
@@ -338,7 +508,7 @@ CANTEEN_PARAM_MAP = {
     '3': 'bistro',
 }
 
-@app.route('/api/menu')
+@app.route('/api/menu')          #API endpoint to fetch menu items (GET requets)
 def api_menu():
     images_dir = os.path.join(app.static_folder, 'images')
 
@@ -352,11 +522,11 @@ def api_menu():
             continue
         if canteen_filter and canteen != canteen_filter:
             continue
-        for filename in sorted(os.listdir(canteen_path)):
-            _, outermost_ext = os.path.splitext(filename)
+        for filename in sorted(os.listdir(canteen_path)):        #Loop through images in the canteen folder and extract name, price, category
+            _, outermost_ext = os.path.splitext(filename)        # Only check the outermost extension to determine if it's a valid image file
             if outermost_ext.lower() not in VALID_EXTENSIONS:
                 continue
-            parsed = parse_filename(filename)
+            parsed = parse_filename(filename)                    #Extract name and price from the filename using the defined parsing logic
             if parsed is None:
                 continue
             name, price = parsed
@@ -374,10 +544,10 @@ def api_menu():
 @app.route('/api/order', methods=['POST'])
 @login_required
 def place_order():
-    data = request.get_json()
+    data = request.get_json()     # Extracts request body (sent from frontend)
 
     # DEBUG: Log what we received
-    app.logger.info(f"[place_order] User {current_user.id} sent: {data}")
+    app.logger.info(f"[place_order] User {current_user.id} sent: {data}")   #Logs request for debugging
 
     if not data:
         app.logger.warning("[place_order] No data provided")
@@ -388,14 +558,14 @@ def place_order():
         app.logger.warning("[place_order] Invalid items")
         return jsonify({'error': 'Items must be a non-empty list'}), 400
 
-    # Process items — CONVERT strings to integers (frontend sends strings!)
+    # Process items — CONVERT strings to integers (frontend sends strings)
     processed_items = []
     calculated_total = 0
 
-    for i, item in enumerate(items):
+    for i, item in enumerate(items):   #Loop through each item in the order and validate/convert data
         name = item.get('name', '')
 
-        # LENIENT: Try to convert price/qty to int, accept strings too
+        # Convert price/qty to int, accept strings too
         try:
             price = int(item.get('price', 0))
             qty = int(item.get('qty', item.get('quantity', 0)))
@@ -413,7 +583,7 @@ def place_order():
         processed_items.append({'name': name, 'price': price, 'qty': qty})
         calculated_total += price * qty
 
-    # LENIENT: Convert total to int
+   # Convert total to int
     try:
         total = int(data.get('total', 0))
     except (ValueError, TypeError):
@@ -423,7 +593,7 @@ def place_order():
     if total <= 0:
         return jsonify({'error': 'Total must be positive'}), 400
 
-    # LENIENT: Allow small discrepancy (platform fees, tax, rounding up to ₹10)
+    # Allow small discrepancy (platform fees, tax, rounding up to ₹10)
     if abs(total - calculated_total) > 10:
         app.logger.warning(f"[place_order] Total mismatch: calc={calculated_total}, sent={total}")
         # Use the larger of the two (trust frontend if they added fees)
@@ -467,13 +637,12 @@ def place_order():
         db.session.rollback()
         app.logger.error(f"[place_order] FAILED: {str(e)}")
         return jsonify({'error': 'Server error. Please try again.'}), 500
-
+    
 
 # This avoids type mismatch issues and is more secure
 @app.route('/api/orders', methods=['GET'])
 @login_required
 def get_orders():
-    """Fetch orders for the currently logged-in user."""
     try:
         orders = Order.query.filter_by(user_id=current_user.id)\
                             .order_by(Order.created_at.desc()).all()
@@ -486,6 +655,9 @@ def get_orders():
                 'time_slot':  order.time_slot,
                 'canteen_id': order.canteen_id,
                 'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
+                'status':     order.status or 'success',
+                'reason':     order.reason or '',
+                'payment_id': order.payment_id or '',
                 'items': [
                     {
                         'name':  item.item_name,
@@ -503,81 +675,119 @@ def get_orders():
         return jsonify({'error': 'Failed to fetch orders'}), 500
 
 
-# Keep old endpoint for backward compatibility (redirects to new one)
-@app.route('/api/orders/<user_id>', methods=['GET'])
-@login_required
-def get_orders_legacy(user_id):
-    """Legacy endpoint — redirects to new /api/orders if user_id matches current user."""
-    if str(current_user.id) != str(user_id):
-        return jsonify({'error': 'Unauthorized'}), 403
-    # Delegate to the new endpoint
-    return get_orders()
 
-# ── Mock Payment Routes ───────────────────────────────────────────────────────
-import uuid
+# Razorpay
+RZP_KEY_ID = "rzp_test_Si1A3V9vsulBjN"  
+RZP_SECRET = "BFmCZzhsjQf6blUQ0nEv2xg0"  
 
-_pending_orders = {}  # in-memory: { mock_order_id: { cart data + status } }
+# Initialise the official Razorpay Python client with our credentials
+rz = razorpay.Client(auth=(RZP_KEY_ID, RZP_SECRET))
+
 
 @app.route('/create-order', methods=['POST'])
 @login_required
 def create_order():
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
+    data = request.get_json() or {}
+    # Extract the three fields checkout.js always sends
+    items      = data.get('items', [])        # list of { name, price, qty }
+    time_slot  = data.get('time_slot', '')   
+    canteen_id = str(data.get('canteen_id', '1'))  # cast to str to match DB column type
 
-    mock_order_id = str(uuid.uuid4())[:12].upper()   # e.g. "A3F1-9B2C-41"
-    _pending_orders[mock_order_id] = {
-        'user_id':   current_user.id,
-        'items':     data.get('items', []),
-        'total':     data.get('total', 0),
-        'time_slot': data.get('time_slot', ''),
-        'canteen_id': str(data.get('canteen_id', '1')),
-        'status':    'pending'
-    }
-    return jsonify({'order_id': mock_order_id}), 200
+   
+    if not items:
+        return jsonify({'error': 'Cart is empty'}), 400
+    total = sum(int(i['price']) * int(i['qty']) for i in items)
+    try:
+        order = Order(
+            user_id      = current_user.id,
+            total_amount = total,
+            time_slot    = time_slot,
+            canteen_id   = canteen_id,
+            status       = 'pending',   # will become 'success' after payment
+        )
+        db.session.add(order)  # add the parent order first to get its ID for the child items
+        db.session.flush()  # flush to generate order.id without committing yet
 
-
-@app.route('/verify-payment', methods=['POST'])
-@login_required
-def verify_payment():
-    data = request.get_json()
-    order_id = data.get('order_id')
-    status   = data.get('status')   # "success" or "failed"
-
-    if not order_id or order_id not in _pending_orders:
-        return jsonify({'error': 'Invalid order ID'}), 400
-
-    pending = _pending_orders[order_id]
-
-    if status == 'success':
-        # Commit to DB (reuse existing Order/OrderItem models)
-        try:
-            order = Order(
-                user_id=pending['user_id'],
-                total_amount=pending['total'],
-                time_slot=pending['time_slot'],
-                canteen_id=pending['canteen_id']
+        # Create one OrderItem row per cart item, linked to the parent order
+        db.session.add_all([
+            OrderItem(
+                order_id  = order.id,
+                item_name = i['name'],
+                price     = int(i['price']),
+                quantity  = int(i['qty']),
             )
-            db.session.add(order)
-            db.session.flush()
-            for item in pending['items']:
-                db.session.add(OrderItem(
-                    order_id=order.id,
-                    item_name=item['name'],
-                    price=int(item['price']),
-                    quantity=int(item['qty'])
-                ))
-            db.session.commit()
-            _pending_orders[order_id]['status'] = 'success'
-            return jsonify({'success': True, 'db_order_id': order.id}), 200
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"[verify_payment] DB error: {e}")
-            return jsonify({'error': 'Server error'}), 500
-    else:
-        _pending_orders[order_id]['status'] = 'failed'
-        return jsonify({'success': False, 'message': 'Payment failed'}), 200
-    
+            for i in items
+        ])
+
+        db.session.commit()  # commit order + all items together atomically
+
+    except Exception as e:
+        db.session.rollback()  # undo everything if anything went wrong
+        app.logger.error(f"[create_order] DB error: {e}")  # Log the error for debugging
+        return jsonify({'error': 'Could not create order'}), 500   # 500 = internal server error 
+    try:
+        rz_order = rz.order.create({
+            'amount':          total * 100,  # convert Rupees to paise
+            'currency':        'INR',
+            'payment_capture': 1,            # auto-capture , no manual capture needed
+        })
+    except Exception as e:
+        # if Razorpay API was unreachable or rejected the request
+        app.logger.error(f"[create_order] Razorpay error: {e}")
+        return jsonify({'error': str(e)}), 502  # 502 = bad gateway (upstream error)
+
+    app.logger.info(
+        f"[create_order] DB order {order.id}, Razorpay {rz_order['id']} for ₹{total}"
+    )
+
+    # Return everything the browser needs to open the Razorpay modal
+    return jsonify({
+        'razorpay_order_id': rz_order['id'],  # passed to Razorpay modal as order_id
+        'amount':            total * 100,      # in paise — modal needs the same unit
+        'currency':          'INR',
+        'db_order_id':       order.id,         # our internal ID; sent back in /confirm-order
+    })
+
+
+@app.route('/confirm-order', methods=['POST'])
+@login_required
+def confirm_order():
+    data        = request.get_json() or {}
+    db_order_id = data.get('db_order_id')          # our internal DB primary key
+    payment_id  = data.get('razorpay_payment_id', '')  # Razorpay's payment reference
+
+    # Look up the order and make sure it belongs to the current user and is still pending
+    order = Order.query.get(db_order_id)
+    if not order or order.user_id != current_user.id or order.status != 'pending':
+        return jsonify({'error': 'Order not found or already processed'}), 404
+
+    # Update the order status and store the payment ID
+    order.status     = 'success'   # mark as paid
+    order.payment_id = payment_id  # store for future receipts
+    db.session.commit()
+
+    app.logger.info(f"[confirm_order] Order {order.id} marked success, payment {payment_id}")
+    return jsonify({'success': True})
+
+
+@app.route('/payment-success')
+@login_required
+def payment_success():
+    return render_template(
+        'success.html',
+        payment_id = request.args.get('payment_id', ''),  
+        order_id   = request.args.get('order_id', ''),   
+        active     = 'canteen',
+    )
+
+
+@app.route('/payment-failed')
+@login_required
+def payment_failed():
+    return render_template('failed.html', active='canteen')
+
+
+
 # Create tables on startup regardless of how the app is launched
 with app.app_context():
     db.create_all()

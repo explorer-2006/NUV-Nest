@@ -15,7 +15,6 @@
 <div class="canteen-grid">
   <div class="menu-section">
     <div class="section-header">
-      <!-- Back button + dynamic heading injected here by JS -->
       <div class="section-header-left">
         <a href="/menu" class="back-btn" id="back-btn">
           <i class='bx bx-arrow-back'></i> All Canteens
@@ -24,28 +23,26 @@
       </div>
       <span style="color:var(--muted);font-size:0.85rem;" id="menu-date"></span>
     </div>
-
-    <div class="meal-tabs" id="meal-tabs">
-      <!-- Tabs injected by canteen.js based on selected canteen -->
-    </div>
-
-    <!-- Dynamic tab content panels injected by canteen.js -->
+    <div class="meal-tabs" id="meal-tabs"></div>
     <div id="tab-panels"></div>
   </div>
 
-  <!-- ── CART — completely unchanged from original ── -->
+  <!-- CART -->
   <div class="cart-section">
     <div class="cart-header">
       <h3>Your Order</h3>
       <span class="cart-count" id="cartCount">0</span>
     </div>
+
     <div class="cart-items" id="cartItems">
       <p style="color:var(--muted);text-align:center;padding:40px 0;">Your cart is empty</p>
     </div>
+
     <div class="cart-total">
       <span>Total</span>
       <span id="cartTotal">₹0</span>
     </div>
+
     <div class="time-slot">
       <h4>Pickup Time Slot</h4>
       <div class="slot-options">
@@ -56,6 +53,7 @@
         <div class="slot-option">2:00 PM</div>
       </div>
     </div>
+
     <button class="checkout-btn" style="margin-top:16px;" onclick="checkout()">
       Proceed to Checkout
     </button>

@@ -218,6 +218,66 @@
     z-index: 300;
     pointer-events: none;
   }
+
+  /* ── Order type toggle pill ── */
+  .order-toggle-wrap {
+    margin-bottom: 16px;
+    flex-shrink: 0;
+  }
+  .order-toggle {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+    position: relative;
+  }
+  .toggle-option {
+    flex: 1;
+    padding: 9px 8px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: color 0.2s;
+    position: relative;
+    z-index: 1;
+  }
+  .toggle-option.active { color: #fff; }
+  .toggle-pill {
+    position: absolute;
+    top: 4px; left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: var(--red);
+    border-radius: 9px;
+    transition: transform 0.25s cubic-bezier(.65,0,.35,1);
+    box-shadow: 0 2px 8px rgba(188,23,29,0.3);
+  }
+  .toggle-pill.right { transform: translateX(calc(100%)); }
+  .slot-rows.hidden { display: none; }
+  .dinein-info {
+    display: none;
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #fff8f8, #fff);
+    border: 1px solid rgba(188,23,29,0.15);
+    border-radius: 12px;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .dinein-info.visible { display: flex; }
+  .dinein-info-icon { font-size: 1.4rem; flex-shrink: 0; margin-top: 1px; }
+  .dinein-info-text { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+  .dinein-info-text strong { display: block; font-size: 0.82rem; color: var(--text); margin-bottom: 2px; }
 </style>
 {% endblock %}
 
@@ -228,10 +288,10 @@
     <!-- 3 canteens injected by menu.js -->
   </div>
   
-  <a class="sidebar-link" id="reorder-btn" href="{{ url_for('past_orders') }}" data-tip="Past Orders" style="position:relative;">
+  <button class="sidebar-link" onclick="showPastOrders()" data-tip="Past Orders" style="position:relative;background:none;border:1px solid transparent;width:100%;text-align:left;font-family:inherit;">
     <i class='bx bx-receipt'></i>
     <span>View Past Orders</span>
-  </a>
+  </button>
 
   <!-- Back to Dashboard -->
   <a class="sidebar-link" href="{{ url_for('dashboard') }}" data-tip="Dashboard" style="position:relative;">
@@ -242,6 +302,14 @@
 {% endblock %}
 
 {% block content %}
+<div style="position:relative;">
+<!-- Past Orders Overlay — sits on top, canteen shell untouched beneath -->
+<div id="past-orders-overlay" style="display:none;position:absolute;inset:0;min-height:100%;background:var(--surface,#f5f5f8);z-index:10;">
+  <div class="menu-section" style="max-width:760px;margin:0 auto;">
+    <div id="past-orders-container" style="margin-top:8px;"></div>
+  </div>
+</div>
+
 <!-- Placeholder: shown when no canteen selected -->
 <div class="canteen-placeholder" id="canteen-placeholder">
   <div class="icon">🍽️</div>
@@ -280,7 +348,21 @@
         <span>Total</span>
         <span id="cartTotal">₹0</span>
       </div>
-      <div class="time-slot">
+      <!-- Order type toggle pill -->
+      <div class="order-toggle-wrap">
+        <div class="order-toggle">
+          <div class="toggle-pill" id="togglePill"></div>
+          <button class="toggle-option active" id="btnPickup" onclick="selectOrderType('takeaway')">
+             Pickup
+          </button>
+          <button class="toggle-option" id="btnDinein" onclick="selectOrderType('dinein')">
+             Dine In
+          </button>
+        </div>
+      </div>
+
+      <!-- Pickup slots — hidden when Dine In -->
+      <div class="time-slot slot-rows" id="slot-rows">
         <h4>Pickup Time Slot</h4>
         <div class="slot-options">
           <div class="slot-option selected">12:00 PM</div>
@@ -290,17 +372,52 @@
           <div class="slot-option">2:00 PM</div>
         </div>
       </div>
+
+      <!-- Dine-in info — shown when Dine In -->
+      <div class="dinein-info" id="dinein-info">
+        <div class="dinein-info-icon">🍽️</div>
+        <div class="dinein-info-text">
+          <strong>Dine In Selected</strong>
+          Your order will be prepared fresh. Show your receipt at the counter — no slot needed.
+        </div>
+      </div>
+
       <button class="checkout-btn" style="margin-top:16px;" onclick="checkout()">
         Proceed to Checkout
       </button>
     </div>
   </div>
 </div>
+</div><!-- /position:relative wrapper -->
 {% endblock %}
 
 {% block scripts %}
 <script>
   const STATIC_BASE = "{{ url_for('static', filename='') }}";
+
+  let selectedOrderType = 'takeaway';
+
+  function selectOrderType(type) {
+    selectedOrderType = type;
+    const pill       = document.getElementById('togglePill');
+    const btnPickup  = document.getElementById('btnPickup');
+    const btnDinein  = document.getElementById('btnDinein');
+    const slotRows   = document.getElementById('slot-rows');
+    const dineinInfo = document.getElementById('dinein-info');
+    if (type === 'dinein') {
+      pill.classList.add('right');
+      btnPickup.classList.remove('active');
+      btnDinein.classList.add('active');
+      slotRows.classList.add('hidden');
+      dineinInfo.classList.add('visible');
+    } else {
+      pill.classList.remove('right');
+      btnPickup.classList.add('active');
+      btnDinein.classList.remove('active');
+      slotRows.classList.remove('hidden');
+      dineinInfo.classList.remove('visible');
+    }
+  }
   // Canteen display names (used by menu.js when rendering the sidebar)
   const CANTEEN_NAMES = {
     '1': 'Main Cafe',
@@ -313,20 +430,81 @@
 </script>
 <script src="{{ url_for('static', filename='js/menu.js') }}"></script>
 <script>
-  // Patch data-tip onto dynamically injected sidebar items for collapsed tooltips
-  function patchSidebarTooltips() {
-    document.querySelectorAll('.canteen-sidebar-item').forEach(el => {
-      if (!el.dataset.tip) {
-        const name = el.querySelector('.sidebar-item-name');
-        if (name) el.dataset.tip = name.textContent.trim();
-      }
-    });
+  // ── Past Orders ──────────────────────────────────────────────────────────────
+  // Uses an overlay so canteen shell + menu.js state are completely untouched.
+  // Clicking any canteen sidebar item simply hides the overlay — menu.js does the rest.
+
+  const PAST_CANTEEN_NAMES = { '1': 'Main Cafe', '2': 'Tea Post', '3': 'Tropical Bistro' };
+
+  function showPastOrders() {
+    const overlay   = document.getElementById('past-orders-overlay');
+    const container = document.getElementById('past-orders-container');
+
+    overlay.style.display = 'block';
+    container.innerHTML   = '<div style="text-align:center;padding:40px;color:var(--muted)">Loading your orders...</div>';
+
+    fetch('/api/orders')
+      .then(res => {
+        if (!res.ok) throw new Error(res.status === 403 ? 'Please log in to view orders' : 'Failed to load (HTTP ' + res.status + ')');
+        return res.json();
+      })
+      .then(orders => {
+        if (!Array.isArray(orders)) throw new Error('Invalid response format');
+        if (orders.length === 0) {
+          container.innerHTML = `
+            <div style="text-align:center;padding:60px 20px;color:var(--muted)">
+              <div style="font-size:3rem;margin-bottom:16px">🧾</div>
+              <h2 style="color:var(--text);margin-bottom:8px">No orders yet</h2>
+              <p>Place your first order from the canteen!</p>
+            </div>`;
+          return;
+        }
+        container.innerHTML = `
+          <h2 style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:20px">📋 Your Past Orders</h2>
+          ${orders.map(order => `
+            <div style="background:var(--white,#fff);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+                <div>
+                  <div style="font-weight:700;color:var(--text);margin-bottom:4px">Order #${order.order_id}</div>
+                  <div style="color:var(--muted);font-size:0.78rem;margin-bottom:6px">${order.created_at || 'Recent'}</div>
+                  <span style="display:inline-block;background:#e8f5e9;color:#2e7d32;padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:600">⏰ ${order.time_slot}</span>
+                  <span style="display:inline-block;background:#fff3e0;color:#e65100;padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;margin-left:6px">${PAST_CANTEEN_NAMES[order.canteen_id] || 'Canteen ' + order.canteen_id}</span>
+                </div>
+                <div style="font-size:1.2rem;font-weight:700;color:var(--red);flex-shrink:0">₹${order.total}</div>
+              </div>
+              ${order.items.map(item => `
+                <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:0.85rem">
+                  <span style="color:var(--text)">${item.name} <span style="color:var(--muted)">× ${item.qty}</span></span>
+                  <span style="color:var(--muted)">₹${item.price * item.qty}</span>
+                </div>`).join('')}
+            </div>`).join('')}`;
+      })
+      .catch(err => {
+        container.innerHTML = `
+          <div style="text-align:center;padding:40px;color:var(--red)">
+            <h3>⚠️ ${err.message}</h3>
+            <p style="margin-top:8px"><a href="/login" style="color:var(--red)">Log in</a> to view your orders</p>
+          </div>`;
+      });
   }
-  // Run after menu.js populates the sidebar (it fetches async, so observe)
+
+  // Hide overlay when any canteen is clicked — menu.js handles everything else normally
   const canteenList = document.getElementById('canteen-list');
   if (canteenList) {
-    new MutationObserver(() => patchSidebarTooltips())
-      .observe(canteenList, { childList: true, subtree: true });
+    new MutationObserver(() => {
+      document.querySelectorAll('.canteen-sidebar-item').forEach(el => {
+        if (el.dataset.pastPatched) return;
+        el.dataset.pastPatched = '1';
+        el.addEventListener('click', () => {
+          document.getElementById('past-orders-overlay').style.display = 'none';
+        });
+        // tooltip patch for collapsed sidebar
+        if (!el.dataset.tip) {
+          const name = el.querySelector('.sidebar-item-name');
+          if (name) el.dataset.tip = name.textContent.trim();
+        }
+      });
+    }).observe(canteenList, { childList: true, subtree: true });
   }
 </script>
 {% endblock %}
