@@ -662,8 +662,9 @@ def get_orders():
 
 
 # Razorpay
-RZP_KEY_ID = "rzp_test_Si1A3V9vsulBjN"  
-RZP_SECRET = "BFmCZzhsjQf6blUQ0nEv2xg0"  
+
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")  
 
 # Initialise the official Razorpay Python client with our credentials
 rz = razorpay.Client(auth=(RZP_KEY_ID, RZP_SECRET))
