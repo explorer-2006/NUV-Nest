@@ -582,22 +582,7 @@ def place_order():
 
         processed_items.append({'name': name, 'price': price, 'qty': qty})
         calculated_total += price * qty
-
-   # Convert total to int
-    try:
-        total = int(data.get('total', 0))
-    except (ValueError, TypeError):
-        app.logger.warning("[place_order] Invalid total")
-        return jsonify({'error': 'Total must be a number'}), 400
-
-    if total <= 0:
-        return jsonify({'error': 'Total must be positive'}), 400
-
-    # Allow small discrepancy (platform fees, tax, rounding up to ₹10)
-    if abs(total - calculated_total) > 10:
-        app.logger.warning(f"[place_order] Total mismatch: calc={calculated_total}, sent={total}")
-        # Use the larger of the two (trust frontend if they added fees)
-        total = max(total, calculated_total)
+        total = calculated_total
 
     time_slot = data.get('time_slot', '')
     if not time_slot:
