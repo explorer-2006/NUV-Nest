@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, flash, render_template, url_for, jsonify, Response, stream_with_context, session
+from flask import Flask, request, redirect, flash, render_template, url_for, jsonify, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, LoginManager, logout_user, login_user, current_user, login_required
 from flask_wtf import FlaskForm
@@ -6,6 +6,8 @@ from wtforms import StringField, PasswordField, EmailField, SubmitField, SelectF
 from wtforms.validators import DataRequired, Email, Length
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+from openai import OpenAI
+from dotenv import load_dotenv
 import re
 import razorpay
 from openai import OpenAI
@@ -87,20 +89,35 @@ SCHOOL_BRANCHES = {
 }
 
 # ── User Model ──
-class User(db.Model, UserMixin):
-    __tablename__ = 'user'
-    id       = db.Column(db.Integer, primary_key=True)
+class User(db.Model, UserMixin):   #db.model tells sqlalchemy this class is a database table
+    __tablename__ = 'user'    #table name in database
+    id       = db.Column(db.Integer, primary_key=True)  #no 2 users have the same id
     username = db.Column(db.String(50), unique=True, nullable=False)
     enrollno = db.Column(db.String(20), nullable=False)
     email    = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.Text, nullable=False)
     school   = db.Column(db.String(10), nullable=False)
     branch   = db.Column(db.String(100), nullable=False)
-    semester = db.Column(db.Integer, nullable=False, default=1)
+    semester = db.Column(db.Integer, nullable=False, default=2)
 
     # One user has many Orders
     orders = db.relationship('Order', backref='user', lazy=True, #links user to order model and backref adds reverse access on order
-                             cascade='all, delete-orphan')  #if user is deleted, delete all their orders to
+                             cascade='all, delete-orphan') #if user is deleted, delete all their orders too
+    
+
+class Conversation(db.Model):
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title      = db.Column(db.String(200), default="New Chat")
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    messages   = db.relationship('Message', backref='conversation', lazy=True, cascade="all, delete-orphan")
+
+class Message(db.Model):
+    id              = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey('conversation.id'), nullable=False)
+    role            = db.Column(db.String(10), nullable=False)
+    content         = db.Column(db.Text, nullable=False)
+    created_at      = db.Column(db.DateTime, default=datetime.now)
 
 
 class Conversation(db.Model):
@@ -145,8 +162,8 @@ class OrderItem(db.Model):
 
 
 @login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+def load_user(user_id):  #gets user-id from the cookies stored in browser
+    return User.query.get(int(user_id))  #returns user object if found else returns none
 
 
 # Make user available in ALL templates without needing to pass explicitly each time
@@ -174,7 +191,7 @@ class LoginForm(FlaskForm):    #setting up the class for the login page
     submit   = SubmitField("Login")
 
 # ── Helper: render both forms together ──
-def render_auth(active_form="login"):  
+def render_auth(active_form="login"):   #helper function tells which form is currently active
     return render_template(
         "auth.html",
         login_form=LoginForm(),
@@ -254,18 +271,117 @@ def dashboard():
     return render_template("dashboard.html", user=current_user)
 
 
-@app.route("/logout")
+@app.route("/logout")   #for logout
 @login_required
 def logout():
     logout_user()
     flash("Logged out successfully.")
-    return redirect(url_for("login"))
+    return redirect(url_for("login"))  #redirects back to login page
 
-# 1. Render chatbot page
-@app.route("/chatbot")
+# 1. Render chatbot page        
+@app.route("/chatbot")  
 @login_required
 def chatbot():
-    return render_template("chatbot.html", user=current_user)
+    return render_template("chatbot.html", user=current_user) #retuns chatbot.html
+
+
+# 2. Create new conversation
+@app.route("/api/chat/new", methods=["POST"])
+@login_required
+def new_conversation():
+    conv = Conversation(user_id=current_user.id)
+    db.session.add(conv)
+    db.session.commit()
+    return jsonify({"conversation_id": conv.id})
+
+
+# 3. Get all conversations for sidebar
+@app.route("/api/chat/history", methods=["GET"])
+@login_required
+def chat_history():
+    convos = Conversation.query.filter_by(user_id=current_user.id)\
+             .order_by(Conversation.created_at.desc()).all() #gets all the convo history of that user in descending order
+    return jsonify([
+        {"id": c.id, "title": c.title, "created_at": c.created_at.strftime("%d %b")} #returns json response to javascript
+        for c in convos
+    ])
+
+
+# 4. Get messages for a specific conversation
+@app.route("/api/chat/<int:conv_id>/messages", methods=["GET"])
+@login_required
+def get_messages(conv_id):
+    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first_or_404() #search for that convo in database
+    msgs = Message.query.filter_by(conversation_id=conv.id)\
+           .order_by(Message.created_at).all()   #get all the messages of that convo in descending order
+    return jsonify([{"role": m.role, "content": m.content} for m in msgs])  #return that json object to javascript
+
+
+# 5. Send message + stream response
+@app.route("/api/chat/<int:conv_id>/message", methods=["POST"])
+@login_required
+def send_message(conv_id):
+    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first_or_404() #get the convo first
+    data = request.get_json() #get the data send by javascript
+    user_text = data.get("message", "").strip()   #it will strip the user message for any additional spaces
+
+    if not user_text:  #if user did not send any message return error
+        return jsonify({"error": "Empty message"}), 400
+
+    # Save user message  
+    user_msg = Message(conversation_id=conv.id, role="user", content=user_text)
+    db.session.add(user_msg)
+    db.session.commit()
+
+    # Generate title after first message
+    history = Message.query.filter_by(conversation_id=conv.id)\
+              .order_by(Message.created_at).all()#get all the previous messages for that convo
+
+    if len(history) == 1:   #if the history does not have any message and user_text is the first message then send it to openai for title
+        title_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Generate a short 4-5 word title for this chat. Return only the title, nothing else."},
+                {"role": "user", "content": user_text}
+            ]
+        )
+        conv.title = title_response.choices[0].message.content.strip()
+        db.session.commit() #update that title to convo
+
+    # Build history for OpenAI
+    messages = [{"role": "system", "content": build_system_prompt(current_user)}] #list of dictionary for openai to know the context
+    for msg in history:  #loop through the messages in history and append them in the list
+        messages.append({"role": msg.role, "content": msg.content})
+
+    # Store conv.id in plain variable BEFORE generate()
+    conversation_id = conv.id 
+
+    def generate():  #this code is for streaming chunks 
+        full_response = ""
+
+        stream = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            stream=True
+        )
+
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                full_response += delta
+                yield delta
+
+        # Use conversation_id variable NOT conv.id
+        with app.app_context():
+            assistant_msg = Message(
+                conversation_id=conversation_id,  # ← CHANGED
+                role="assistant",
+                content=full_response
+            )
+            db.session.add(assistant_msg)
+            db.session.commit()
+
+    return Response(stream_with_context(generate()), mimetype="text/plain") #streams chunks to javascript as they get generated
 
 # 2. Create new conversation
 @app.route("/api/chat/new", methods=["POST"])
