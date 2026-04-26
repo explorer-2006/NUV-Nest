@@ -48,10 +48,8 @@ SLSE: Media Studies, Psychology, Development Studies, Education Technology
 Rules:
 - First ask about interests and career goals before recommending
 - Recommend 2-3 electives max with clear reasoning
-- Only recommend electives from the student's own school
+- Do recommend electives from all the school
 - Greet them Nicely and dont be rude also if they try to go off topic do kindly redirect them. 
-- If asked something off-topic reply with:
-  "I'm only here to help you choose the right electives at NUV. What are your interests or career goals?"
 - Never make up electives not in the list above
 """
 
@@ -339,7 +337,7 @@ def send_message(conv_id):
 
     if len(history) == 1:   #if the history does not have any message and user_text is the first message then send it to openai for title
         title_response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": "Generate a short 4-5 word title for this chat. Return only the title, nothing else."},
                 {"role": "user", "content": user_text}

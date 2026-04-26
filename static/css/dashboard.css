@@ -43,9 +43,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
 }
-
 .sidebar.collapsed { width: 64px; }
 
 .logo-area {
@@ -180,8 +178,6 @@ body {
 
 .sidebar-footer {
   margin-top: auto;
-  padding: 14px 10px;
-  border-top: 1px solid var(--border);
 }
 
 .user-card {
@@ -197,13 +193,35 @@ body {
 }
 
 .sidebar.collapsed .user-card {
+  width: 40px;              /* 👈 force small size */
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
   background: transparent;
-  padding: 10px 5px;
+
+  display: flex;
+  align-items: center;
   justify-content: center;
+
+  margin: 0 auto;           /* 👈 center horizontally */
 }
 
-.user-card:hover { background: var(--input-bg); }
+.sidebar.collapsed .avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
 
+/* OPTIONAL: push it slightly to bottom like modern dashboards */
+.sidebar.collapsed .sidebar-footer {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.sidebar.collapsed .user-card:hover {
+  background: rgba(188, 23, 29, 0.1);
+}
 .avatar {
   width: 34px; height: 34px;
   border-radius: 9px;
