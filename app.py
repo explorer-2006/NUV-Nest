@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, flash, render_template, url_for, jsonify, Response, stream_with_context
+from flask import Flask, request, redirect, flash, render_template, url_for, jsonify, Response, stream_with_context,session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, LoginManager, logout_user, login_user, current_user, login_required
 from flask_wtf import FlaskForm
