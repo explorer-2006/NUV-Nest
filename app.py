@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, flash, render_template, url_for, jsonify, Response, stream_with_context,session
+from flask import Flask, request, redirect, flash, render_template, url_for, jsonify, Response, stream_with_context, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, LoginManager, logout_user, login_user, current_user, login_required
 from flask_wtf import FlaskForm
@@ -6,8 +6,6 @@ from wtforms import StringField, PasswordField, EmailField, SubmitField, SelectF
 from wtforms.validators import DataRequired, Email, Length
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-from openai import OpenAI
-from dotenv import load_dotenv
 import re
 import razorpay
 from openai import OpenAI
@@ -48,8 +46,10 @@ SLSE: Media Studies, Psychology, Development Studies, Education Technology
 Rules:
 - First ask about interests and career goals before recommending
 - Recommend 2-3 electives max with clear reasoning
-- Do recommend electives from all the school
+- Only recommend electives from the student's own school
 - Greet them Nicely and dont be rude also if they try to go off topic do kindly redirect them. 
+- If asked something off-topic reply with:
+  "I'm only here to help you choose the right electives at NUV. What are your interests or career goals?"
 - Never make up electives not in the list above
 """
 
@@ -87,35 +87,20 @@ SCHOOL_BRANCHES = {
 }
 
 # ── User Model ──
-class User(db.Model, UserMixin):   #db.model tells sqlalchemy this class is a database table
-    __tablename__ = 'user'    #table name in database
-    id       = db.Column(db.Integer, primary_key=True)  #no 2 users have the same id
+class User(db.Model, UserMixin):
+    __tablename__ = 'user'
+    id       = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     enrollno = db.Column(db.String(20), nullable=False)
     email    = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.Text, nullable=False)
     school   = db.Column(db.String(10), nullable=False)
     branch   = db.Column(db.String(100), nullable=False)
-    semester = db.Column(db.Integer, nullable=False, default=2)
+    semester = db.Column(db.Integer, nullable=False, default=1)
 
     # One user has many Orders
     orders = db.relationship('Order', backref='user', lazy=True, #links user to order model and backref adds reverse access on order
-                             cascade='all, delete-orphan') #if user is deleted, delete all their orders too
-    
-
-class Conversation(db.Model):
-    id         = db.Column(db.Integer, primary_key=True)
-    user_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    title      = db.Column(db.String(200), default="New Chat")
-    created_at = db.Column(db.DateTime, default=datetime.now)
-    messages   = db.relationship('Message', backref='conversation', lazy=True, cascade="all, delete-orphan")
-
-class Message(db.Model):
-    id              = db.Column(db.Integer, primary_key=True)
-    conversation_id = db.Column(db.Integer, db.ForeignKey('conversation.id'), nullable=False)
-    role            = db.Column(db.String(10), nullable=False)
-    content         = db.Column(db.Text, nullable=False)
-    created_at      = db.Column(db.DateTime, default=datetime.now)
+                             cascade='all, delete-orphan')  #if user is deleted, delete all their orders to
 
 
 class Conversation(db.Model):
@@ -160,8 +145,8 @@ class OrderItem(db.Model):
 
 
 @login_manager.user_loader
-def load_user(user_id):  #gets user-id from the cookies stored in browser
-    return User.query.get(int(user_id))  #returns user object if found else returns none
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 
 # Make user available in ALL templates without needing to pass explicitly each time
@@ -189,7 +174,7 @@ class LoginForm(FlaskForm):    #setting up the class for the login page
     submit   = SubmitField("Login")
 
 # ── Helper: render both forms together ──
-def render_auth(active_form="login"):   #helper function tells which form is currently active
+def render_auth(active_form="login"):  
     return render_template(
         "auth.html",
         login_form=LoginForm(),
@@ -257,7 +242,7 @@ def login():
                 login_user(logged_in_user)
                 return redirect(url_for("dashboard"))
             else:
-                flash("Invalid email or password.")      #if data entered doesnot match it will flash an error
+                flash("Invalid email or password.")      #if data entered does not match it will flash an error
                 return render_auth(active_form="login")
         else:
             return render_auth(active_form="login")
@@ -269,117 +254,18 @@ def dashboard():
     return render_template("dashboard.html", user=current_user)
 
 
-@app.route("/logout")   #for logout
+@app.route("/logout")
 @login_required
 def logout():
     logout_user()
     flash("Logged out successfully.")
-    return redirect(url_for("login"))  #redirects back to login page
+    return redirect(url_for("login"))
 
-# 1. Render chatbot page        
-@app.route("/chatbot")  
+# 1. Render chatbot page
+@app.route("/chatbot")
 @login_required
 def chatbot():
-    return render_template("chatbot.html", user=current_user) #retuns chatbot.html
-
-
-# 2. Create new conversation
-@app.route("/api/chat/new", methods=["POST"])
-@login_required
-def new_conversation():
-    conv = Conversation(user_id=current_user.id)
-    db.session.add(conv)
-    db.session.commit()
-    return jsonify({"conversation_id": conv.id})
-
-
-# 3. Get all conversations for sidebar
-@app.route("/api/chat/history", methods=["GET"])
-@login_required
-def chat_history():
-    convos = Conversation.query.filter_by(user_id=current_user.id)\
-             .order_by(Conversation.created_at.desc()).all() #gets all the convo history of that user in descending order
-    return jsonify([
-        {"id": c.id, "title": c.title, "created_at": c.created_at.strftime("%d %b")} #returns json response to javascript
-        for c in convos
-    ])
-
-
-# 4. Get messages for a specific conversation
-@app.route("/api/chat/<int:conv_id>/messages", methods=["GET"])
-@login_required
-def get_messages(conv_id):
-    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first_or_404() #search for that convo in database
-    msgs = Message.query.filter_by(conversation_id=conv.id)\
-           .order_by(Message.created_at).all()   #get all the messages of that convo in descending order
-    return jsonify([{"role": m.role, "content": m.content} for m in msgs])  #return that json object to javascript
-
-
-# 5. Send message + stream response
-@app.route("/api/chat/<int:conv_id>/message", methods=["POST"])
-@login_required
-def send_message(conv_id):
-    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first_or_404() #get the convo first
-    data = request.get_json() #get the data send by javascript
-    user_text = data.get("message", "").strip()   #it will strip the user message for any additional spaces
-
-    if not user_text:  #if user did not send any message return error
-        return jsonify({"error": "Empty message"}), 400
-
-    # Save user message  
-    user_msg = Message(conversation_id=conv.id, role="user", content=user_text)
-    db.session.add(user_msg)
-    db.session.commit()
-
-    # Generate title after first message
-    history = Message.query.filter_by(conversation_id=conv.id)\
-              .order_by(Message.created_at).all()#get all the previous messages for that convo
-
-    if len(history) == 1:   #if the history does not have any message and user_text is the first message then send it to openai for title
-        title_response = client.chat.completions.create(
-            model="gpt-4.1",
-            messages=[
-                {"role": "system", "content": "Generate a short 4-5 word title for this chat. Return only the title, nothing else."},
-                {"role": "user", "content": user_text}
-            ]
-        )
-        conv.title = title_response.choices[0].message.content.strip()
-        db.session.commit() #update that title to convo
-
-    # Build history for OpenAI
-    messages = [{"role": "system", "content": build_system_prompt(current_user)}] #list of dictionary for openai to know the context
-    for msg in history:  #loop through the messages in history and append them in the list
-        messages.append({"role": msg.role, "content": msg.content})
-
-    # Store conv.id in plain variable BEFORE generate()
-    conversation_id = conv.id 
-
-    def generate():  #this code is for streaming chunks 
-        full_response = ""
-
-        stream = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            stream=True
-        )
-
-        for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                full_response += delta
-                yield delta
-
-        # Use conversation_id variable NOT conv.id
-        with app.app_context():
-            assistant_msg = Message(
-                conversation_id=conversation_id,  # ← CHANGED
-                role="assistant",
-                content=full_response
-            )
-            db.session.add(assistant_msg)
-            db.session.commit()
-
-    return Response(stream_with_context(generate()), mimetype="text/plain") #streams chunks to javascript as they get generated
+    return render_template("chatbot.html", user=current_user)
 
 # 2. Create new conversation
 @app.route("/api/chat/new", methods=["POST"])
@@ -548,7 +434,7 @@ VALID_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
 
 CATEGORY_RULES = {
     'main_cafe': [
-        ('breakfast', ['paratha', 'poha', 'upma', 'idli', 'bread', 'handvo', 'masala oats', 'sabudana vada', 'wraps', 'khichu', 'masala noodles', 'masala noodles with cheese']),
+        ('breakfast', ['poha', 'upma', 'idli', 'sambar', 'bread butter','buttermilk', 'tea', 'coffee']),
         ('lunch',     ['dish', 'thali', 'dal', 'pav bhaji', 'chole', 'punjabi']),
         ('snacks',    ['samosa', 'dabeli', 'vadapav', 'sandwich', 'burger', 'pizza', 'fries', 'toast', 'grill', 'bhel', 'nachos', 'panini', 'salad', 'soup', 'tikki', 'bun']),
         ('dinner',    ['noodles', 'rice', 'manchurian', 'chilli paneer', 'paneer chilli', 'fried rice']),
@@ -665,7 +551,7 @@ def place_order():
 
     if not data:
         app.logger.warning("[place_order] No data provided")
-        return jsonify({'error': 'No data provided'}), 400
+        return jsonify({'error': 'No data provided'}), 400 # Return error if no data is provided
 
     items = data.get('items', [])
     if not items or not isinstance(items, list):
@@ -696,7 +582,22 @@ def place_order():
 
         processed_items.append({'name': name, 'price': price, 'qty': qty})
         calculated_total += price * qty
-        total = calculated_total
+
+   # Convert total to int
+    try:
+        total = int(data.get('total', 0))
+    except (ValueError, TypeError):
+        app.logger.warning("[place_order] Invalid total")
+        return jsonify({'error': 'Total must be a number'}), 400
+
+    if total <= 0:
+        return jsonify({'error': 'Total must be positive'}), 400
+
+    # Allow small discrepancy (platform fees, tax, rounding up to ₹10)
+    if abs(total - calculated_total) > 10:
+        app.logger.warning(f"[place_order] Total mismatch: calc={calculated_total}, sent={total}")
+        # Use the larger of the two (trust frontend if they added fees)
+        total = max(total, calculated_total)
 
     time_slot = data.get('time_slot', '')
     if not time_slot:
@@ -774,19 +675,126 @@ def get_orders():
         return jsonify({'error': 'Failed to fetch orders'}), 500
 
 
-# Keep old endpoint for backward compatibility (redirects to new one)
-@app.route('/api/orders/<user_id>', methods=['GET'])
+
+# Razorpay
+RZP_KEY_ID = "rzp_test_Si1A3V9vsulBjN"  
+RZP_SECRET = "BFmCZzhsjQf6blUQ0nEv2xg0"  
+
+#RZP_KEY_ID = os.getenv('RZP_KEY_ID')      # From .env file
+#RZP_SECRET = os.getenv('RZP_SECRET')      # From .env file
+
+
+# Initialise the official Razorpay Python client with our credentials
+rz = razorpay.Client(auth=(RZP_KEY_ID, RZP_SECRET))   #the razorpay client will be used to create orders and verify payments in the backend using the Razorpay API
+
+
+@app.route('/create-order', methods=['POST'])
 @login_required
-def get_orders_legacy(user_id):
-    """Legacy endpoint — redirects to new /api/orders if user_id matches current user."""
-    if str(current_user.id) != str(user_id):
-        return jsonify({'error': 'Unauthorized'}), 403
-    # Delegate to the new endpoint
-    return get_orders()
-    
+def create_order():
+    data = request.get_json() or {}
+    # Extract the three fields checkout.js always sends
+    items      = data.get('items', [])        # list of { name, price, qty }
+    time_slot  = data.get('time_slot', '')   
+    canteen_id = str(data.get('canteen_id', '1'))  # cast to str to match DB column type
+
+   
+    if not items:
+        return jsonify({'error': 'Cart is empty'}), 400
+    total = sum(int(i['price']) * int(i['qty']) for i in items)
+    try:
+        order = Order(
+            user_id      = current_user.id,
+            total_amount = total,
+            time_slot    = time_slot,
+            canteen_id   = canteen_id,
+            status       = 'pending',   # will become 'success' after payment
+        )
+        db.session.add(order)  # add the parent order first to get its ID for the child items
+        db.session.flush()  # flush to generate order.id without committing yet
+
+        # Create one OrderItem row per cart item, linked to the parent order
+        db.session.add_all([
+            OrderItem(
+                order_id  = order.id,
+                item_name = i['name'],
+                price     = int(i['price']),
+                quantity  = int(i['qty']),
+            )
+            for i in items
+        ])
+
+        db.session.commit()  # commit order + all items together atomically
+
+    except Exception as e:
+        db.session.rollback()  # undo everything if anything went wrong
+        app.logger.error(f"[create_order] DB error: {e}")  # Log the error for debugging
+        return jsonify({'error': 'Could not create order'}), 500   # 500 = internal server error 
+    try:
+        rz_order = rz.order.create({
+            'amount':          total * 100,  # convert Rupees to paise
+            'currency':        'INR',
+            'payment_capture': 1,            # auto-capture , no manual capture needed
+        })
+    except Exception as e:
+        # if Razorpay API was unreachable or rejected the request
+        app.logger.error(f"[create_order] Razorpay error: {e}")
+        return jsonify({'error': str(e)}), 502  # 502 = bad gateway
+
+    app.logger.info(
+        f"[create_order] DB order {order.id}, Razorpay {rz_order['id']} for ₹{total}"
+    )
+
+    # Return everything the browser needs to open the Razorpay modal
+    return jsonify({
+        'razorpay_order_id': rz_order['id'],  # passed to Razorpay modal as order_id
+        'amount':            total * 100,      # in paise — modal needs the same unit
+        'currency':          'INR',
+        'db_order_id':       order.id,         # our internal ID; sent back in /confirm-order
+    })
+
+  
+@app.route('/confirm-order', methods=['POST'])
+@login_required
+def confirm_order():
+    data        = request.get_json() or {}
+    db_order_id = data.get('db_order_id')          # our internal DB primary key
+    payment_id  = data.get('razorpay_payment_id', '')  # Razorpay's payment reference
+
+    # Look up the order and make sure it belongs to the current user and is still pending
+    order = Order.query.get(db_order_id)
+    if not order or order.user_id != current_user.id or order.status != 'pending':
+        return jsonify({'error': 'Order not found or already processed'}), 404
+
+    # Update the order status and store the payment ID
+    order.status     = 'success'   # mark as paid
+    order.payment_id = payment_id  # store for future receipts
+    db.session.commit()
+
+    app.logger.info(f"[confirm_order] Order {order.id} marked success, payment {payment_id}")
+    return jsonify({'success': True})
+
+
+@app.route('/payment-success')
+@login_required
+def payment_success():
+    return render_template(
+        'success.html',
+        payment_id = request.args.get('payment_id', ''),  
+        order_id   = request.args.get('order_id', ''),   
+        active     = 'canteen',
+    )
+
+
+@app.route('/payment-failed')
+@login_required
+def payment_failed():
+    return render_template('failed.html', active='canteen')
+
+
+
 # Create tables on startup regardless of how the app is launched
 with app.app_context():
     db.create_all()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)
